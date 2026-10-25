@@ -1,133 +1,141 @@
-/* SCAM OS - Scam Tools app: toggles, harassment actions, and tool demos. */
+/* Scam Tools - Manual SMS/Email Phishing Gateway & Line Hardware Rack */
 (function () {
-  const SO = window.SO, esc = s => SO.esc(s);
+  const SO = window.SO, G = SO.game, esc = SO.esc;
 
-  const ACTIONS = {
-    t_popup: { id: 't_popup', label: 'Fake virus popup', fx: 'A loud fake antivirus alert just popped up on your computer screen with big red warnings saying YOUR PC IS INFECTED and a phone number to call.', tag: 'fear' },
-    t_bsod: { id: 't_bsod', label: 'Fake BSOD', fx: 'Your computer screen suddenly turned solid blue with a scary error message and the machine froze.', tag: 'fear' },
-    t_form: { id: 't_form', label: 'Send payment link', fx: 'You just received a link to a very professional, official-looking payment web page from the caller.', tag: 'proof' },
-    t_remote: { id: 't_remote', label: 'Send remote app', fx: 'You received a download link for a "support tool"; the caller wants you to run it. A window opens saying "Connecting to technician...".', tag: 'remote' }
-  };
+  const MODULES = [
+    { id: 't_popup', name: 'Security Alert Popup Link', desc: 'Dispatches an SMS/email link that triggers a full-screen red antivirus siren warning on the target\'s computer.' },
+    { id: 't_bsod', name: 'Kernel Diagnostic Stop Link', desc: 'Dispatches a diagnostic link that triggers a simulated blue-screen kernel stop on the target\'s PC.' },
+    { id: 't_form', name: 'SecurePay Verification Form', desc: 'Dispatches an official-looking billing/refund verification link to the target\'s phone or email.' },
+    { id: 't_remote', name: 'RemoteDesk Support Installer', desc: 'Dispatches a download link for the RemoteDesk client so the target can read out their 9-digit Client ID & PIN.' }
+  ];
 
-  function demoPopup() {
-    const w = SO.wm.open({ id: 'demo-av-' + Date.now(), title: 'SECURITY WARNING', icon: 'warn', w: 380, h: 250, noMax: true });
-    w.body.innerHTML = '<div class="pad col" style="background:#fff3f3;flex:1;align-items:center;text-align:center"><div style="font-size:28px;color:#c00">7 VIRUSES FOUND!</div><div>Your PC is at risk. Call 1-800-NOT-REAL now. (Parody demo only.)</div><div class="grow"></div><div class="row"><button class="xp-btn red" id="a">Remove now</button><button class="xp-btn" id="b">Ignore</button></div></div>';
-    w.body.querySelector('#a').onclick = () => { SO.audio.play('error'); }; w.body.querySelector('#b').onclick = () => w.close();
-    SO.audio.play('error');
-  }
-  function demoRemote() {
-    const w = SO.wm.open({ id: 'demo-remote', title: 'RemoteHelper 3.1 (fake)', icon: 'cmd', w: 380, h: 220, noMax: true });
-    w.body.innerHTML = '<div class="pad col" style="flex:1"><div>Connecting to technician...</div><div class="meter"><div class="bar"><i id="rb" style="--c:#2a6bff"></i></div></div><div class="muted" id="rs">Contacting fake server...</div><div class="grow"></div></div>';
-    let p = 0; const iv = setInterval(() => { p += 7; const b = w.body.querySelector('#rb'); if (!b) return clearInterval(iv); b.style.width = Math.min(100, p) + '%'; if (p >= 100) { clearInterval(iv); w.body.querySelector('#rs').textContent = 'Connected. (Not really. Nothing happened.)'; SO.audio.play('ding'); } }, 250);
-  }
-  const DECLINES = ['DECLINED: Insufficient funds.', 'DECLINED: Card blocked by issuer.', 'DECLINED: Your bank\'s fraud filter flagged this charge.', 'DECLINED: Issuer did not respond.', 'DECLINED: Card number is not valid.'];
-  function demoForm() {
-    const w = SO.wm.open({ id: 'demo-form', title: 'SecurePay Checkout (fake)', icon: 'cash', w: 430, h: 352, noMax: true });
-    w.body.innerHTML = '<div class="pad col" style="flex:1;gap:7px;background:#f7f7f4;overflow:auto">' +
-      '<div class="row" style="align-items:center"><div class="grow"><b>SecurePay</b> &mdash; Courier Relief Fund</div>' + SO.iconImg('cash', 32) + '</div>' +
-      '<div class="muted" style="font-size:12px">Redelivery fee: <b>$2.99</b>. This is a FAKE demo of the payment pages scammers send: nothing is transmitted or stored, and every charge fails.</div>' +
-      '<input class="xp-input" data-f="card" maxlength="23" inputmode="numeric" placeholder="Card number (type any digits)" autocomplete="off">' +
-      '<div class="row" style="gap:6px"><input class="xp-input" data-f="exp" maxlength="5" placeholder="MM/YY" autocomplete="off"><input class="xp-input" data-f="cvv" maxlength="4" inputmode="numeric" placeholder="CVV" autocomplete="off"><input class="xp-input" data-f="zip" maxlength="5" inputmode="numeric" placeholder="ZIP" autocomplete="off"></div>' +
-      '<button class="xp-btn green" data-pay>Pay $2.99</button>' +
-      '<div data-verdict style="display:none"></div>' +
-      '<div class="muted grow" style="font-size:11px">Parody demo. Rule of thumb: never type card details onto any page a caller sends you.</div></div>';
-    const b = w.body, fields = [...b.querySelectorAll('[data-f]')], v = b.querySelector('[data-verdict]');
-    const verdictBad = html => { v.style.display = ''; v.style.background = '#fff0f0'; v.style.border = '2px solid #c00'; v.style.padding = '6px 8px'; v.style.color = '#600'; v.innerHTML = html; };
-    const verdictWait = () => { v.style.display = ''; v.style.background = '#fff'; v.style.border = '1px solid #919b9c'; v.style.padding = '6px 8px'; v.style.color = '#000'; v.innerHTML = '<div class="row"><b class="grow">Contacting issuer...</b><div class="meter"><div class="bar"><i id="pfb" style="--c:#2a6bff;width:5%"></i></div></div></div>'; };
-    fields.forEach(i => {
-      i.oninput = () => {
-        i.value = i.dataset.f === 'exp' ? i.value.replace(/[^\d/]/g, '') : i.value.replace(/\D+/g, '');
-        v.style.display = 'none';
-        i.style.background = '';
-      };
-    });
-    b.querySelector('[data-pay]').onclick = () => {
-      const missing = fields.filter(i => !String(i.value).trim());
-      if (missing.length) {
-        missing.forEach(i => { i.style.background = '#ffdede'; });
-        verdictBad('<b>Please complete every field before paying.</b><div style="font-size:12px">This site validates just like a real checkout - a preview of how scam payment pages act.</div>');
-        SO.audio.play('error');
-        return;
-      }
-      const btn = b.querySelector('[data-pay]');
-      btn.disabled = true; btn.textContent = 'Processing...';
-      verdictWait();
-      let p = 3;
-      const iv = setInterval(() => { const bar = b.querySelector('#pfb'); if (!bar) return clearInterval(iv); p += 4 + Math.random() * 9; bar.style.width = Math.min(100, p) + '%'; if (p >= 100) { clearInterval(iv); finish(); } }, 220);
-      function finish() {
-        btn.disabled = false; btn.textContent = 'Pay $2.99';
-        verdictBad('<b>' + DECLINES[Math.floor(Math.random() * DECLINES.length)] + '</b><div style="font-size:12px">Amount attempted: $2.99 &bull; nothing was charged &bull; no data left this window.</div>');
-        SO.audio.play('error');
-      }
-    };
-  }
-
-  function open() {
-    let unsub = null;
-    const w = SO.wm.open({ id: 'tools', title: 'Scam Tools', icon: 'tools', w: 620, h: 480, minW: 420, minH: 320, onClose: () => unsub && unsub() });
-    if (!w.fresh) return w;
-    const G = SO.game;
-    w.body.innerHTML = '<div class="scroll grow pad" id="tl"></div>';
-
-    function render() {
-      const d = SO.save.d, tools = SO.data.SHOP.filter(i => i.cat === 'Tools');
-      const el = w.body.querySelector('#tl');
-      const callActive = SO.activeCall && SO.activeCall.isActive();
-      const activeLead = callActive ? SO.activeCall.lead() : null;
-
-      let callBanner = '';
-      if (callActive && activeLead) {
-        callBanner = '<div class="row" style="background:#cfe0f7;border-bottom:1px solid #aca899;padding:5px 10px;margin-bottom:6px">' +
-          SO.avatar(activeLead.id, 32, { gender: activeLead.gender, age: activeLead.age }) +
-          '<b class="grow">ON CALL: ' + esc(activeLead.name) + '</b><span class="tag b">DEPLOY READY</span>' +
-          '</div>';
-      }
-
-      el.innerHTML = callBanner + tools.map(t => {
-        const own = G.owns(t.id);
-        let extra = '';
-        if (own && t.id === 't_spoof') extra = '<label><input type="checkbox" data-k="spoof"' + (d.toolState.spoof !== false ? ' checked' : '') + '> Enabled</label>';
-        else if (own && t.id === 't_voice') extra = '<label><input type="checkbox" data-k="voice"' + (d.toolState.voice !== false ? ' checked' : '') + '> Enabled</label>';
-        else if (own && ACTIONS[t.id]) {
-          if (callActive) {
-            extra = '<button class="xp-btn small green" data-call-act="' + t.id + '">Deploy on Call</button>';
-          } else {
-            extra = '<button class="xp-btn small" data-d="' + t.id.replace('t_', '') + '">Preview / Test</button>';
-          }
-        }
-        return '<div class="card row" style="margin-bottom:6px;' + (own ? '' : 'opacity:.55') + '">' +
-          SO.iconImg(t.icon, 32) +
-          '<b class="grow">' + esc(t.name) + '</b> ' + (own ? '<span class="tag g">INSTALLED</span>' : '<span class="tag r">LOCKED</span>') +
-          (own ? extra : '<button class="xp-btn small" data-d="shop">ScamMart</button>') +
-          '</div>';
-      }).join('');
-
-      el.querySelectorAll('input[data-k]').forEach(i => i.onchange = () => { d.toolState[i.dataset.k] = i.checked; SO.save.save(); });
-      el.querySelectorAll('button[data-call-act]').forEach(b => b.onclick = () => {
-        const actId = b.dataset.callAct;
-        if (ACTIONS[actId] && SO.activeCall) {
-          const ok = SO.activeCall.doAction(ACTIONS[actId]);
-          if (ok) {
-            b.disabled = true;
-            b.textContent = 'Deployed!';
-            SO.audio.play('click');
-          }
-        }
+  SO.registerApp('tools', {
+    title: 'Scam Tools — Phishing Gateway & Hardware Rack', icon: 'tools', w: 720, h: 520, minW: 580, minH: 420, singleton: true,
+    open() {
+      let targetAddr = '', selMod = 't_popup', senderId = 'SECURITY-ALERT', statusMsg = null, unsub = null;
+      const win = SO.wm.open({
+        id: 'tools', title: this.title, icon: this.icon, w: this.w, h: this.h, minW: this.minW, minH: this.minH,
+        body: '<div class="main"></div>',
+        onClose: () => unsub && unsub()
       });
-      el.querySelectorAll('button[data-d]').forEach(b => b.onclick = () => {
-        const k = b.dataset.d;
-        if (k === 'popup') demoPopup();
-        else if (k === 'bsod') SO.bsod('FAKE_TOOL_DEMO', 3000);
-        else if (k === 'form') demoForm();
-        else if (k === 'remote') demoRemote();
-        else SO.openApp('shop');
-      });
+      const root = win.body.firstChild;
+
+      function render() {
+        const d = SO.save.d;
+        const ts = d.toolState = d.toolState || { spoof: true, spoofNumber: '', spoofName: '', voice: true, voiceProfile: 'corporate' };
+        const ac = SO.activeCall && SO.activeCall.isActive && SO.activeCall.isActive() ? SO.activeCall.call : null;
+
+        root.innerHTML =
+          '<div class="row" style="justify-content:space-between">' +
+            '<div><b style="font-size:14px">SMS / Email Phishing Gateway &amp; Line Hardware Rack</b>' +
+              '<div class="muted">' + (ac ? 'Active Call Line: <b>' + esc(ac.lead.name) + ' (' + esc(ac.lead.phone || '555-0100') + ')</b>' : 'No active call — configure hardware or stage outbound gateway payloads') + '</div>' +
+            '</div>' +
+            '<button class="xp-btn" id="shop">Open ScamMart</button>' +
+          '</div>' +
+
+          /* Manual SMS / Email Phishing Dispatch Console */
+          '<div class="group" style="margin:6px 0 0 0">' +
+            '<div class="group-title">Manual SMS / Email Payload Dispatch Gateway</div>' +
+            '<div style="display:grid;grid-template-columns:1.2fr 1fr 1.3fr;gap:8px">' +
+              '<div><label class="muted" style="font-size:11px;font-weight:600">Target Phone (555-XXXX) or Email</label>' +
+                '<input class="xp-in mono" id="tg-addr" placeholder="e.g. 555-3819" value="' + esc(targetAddr) + '">' +
+              '</div>' +
+              '<div><label class="muted" style="font-size:11px;font-weight:600">Spoofed Sender Header</label>' +
+                '<input class="xp-in mono" id="tg-sender" placeholder="SECURITY-DESK" value="' + esc(senderId) + '">' +
+              '</div>' +
+              '<div><label class="muted" style="font-size:11px;font-weight:600">Payload Module</label>' +
+                '<select class="xp-sel" id="tg-mod">' +
+                  MODULES.map(m => '<option value="' + m.id + '" ' + (selMod === m.id ? 'selected' : '') + '>' + m.name + (G.owns(m.id) ? ' [READY]' : ' [LOCKED]') + '</option>').join('') +
+                '</select>' +
+              '</div>' +
+            '</div>' +
+            '<div class="row" style="justify-content:space-between;margin-top:8px">' +
+              '<span class="muted" style="font-size:11px">' + esc((MODULES.find(m => m.id === selMod) || MODULES[0]).desc) + '</span>' +
+              '<button class="xp-btn primary" id="tg-send">📡 Transmit Payload</button>' +
+            '</div>' +
+            (statusMsg ? '<div style="margin-top:6px;font-size:11.5px;font-weight:700;color:' + (statusMsg.ok ? '#16a34a' : '#dc2626') + '">' + esc(statusMsg.text) + '</div>' : '') +
+          '</div>' +
+
+          /* Installed Payload Modules Status */
+          '<div class="group" style="margin:6px 0 0 0">' +
+            '<div class="group-title">Installed Gateway Modules</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px">' +
+              MODULES.map(m => {
+                const owned = G.owns(m.id);
+                return '<div class="sunken" style="padding:7px 9px;display:flex;justify-content:space-between;align-items:center">' +
+                  '<div><b style="font-size:11.5px">' + esc(m.name) + '</b><div class="muted" style="font-size:10.5px">' + (owned ? 'Module licensed &amp; active' : 'Purchase in ScamMart') + '</div></div>' +
+                  '<span class="tag ' + (owned ? 'g' : '') + '">' + (owned ? 'INSTALLED' : 'LOCKED') + '</span>' +
+                '</div>';
+              }).join('') +
+            '</div>' +
+          '</div>' +
+
+          /* Hardware Rack: Caller-ID Spoofer & Voice Modulator */
+          '<div class="group" style="margin:6px 0 0 0;flex:1">' +
+            '<div class="group-title">Telecom Hardware Rack Configuration</div>' +
+            '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">' +
+              '<div class="sunken" style="padding:10px">' +
+                '<div class="row" style="justify-content:space-between">' +
+                  '<b>Caller-ID Spoofer</b>' +
+                  '<input type="checkbox" id="hw-spoof" ' + (!G.owns('t_spoof') ? 'disabled' : (ts.spoof !== false ? 'checked' : '')) + '>' +
+                '</div>' +
+                (G.owns('t_spoof') ? (
+                  '<div style="display:flex;flex-direction:column;gap:5px;margin-top:6px">' +
+                    '<input class="xp-in" id="hw-spname" placeholder="Spoofed Display Name" value="' + esc(ts.spoofName || '') + '" style="font-size:11px">' +
+                    '<input class="xp-in mono" id="hw-spnum" placeholder="Spoofed Number (800-555-0199)" value="' + esc(ts.spoofNumber || '') + '" style="font-size:11px">' +
+                  '</div>'
+                ) : '<div class="muted" style="margin-top:6px;font-size:11px">Not owned. Purchase in ScamMart ($120).</div>') +
+              '</div>' +
+
+              '<div class="sunken" style="padding:10px">' +
+                '<div class="row" style="justify-content:space-between">' +
+                  '<b>Voice Modulator</b>' +
+                  '<input type="checkbox" id="hw-voice" ' + (!G.owns('t_voice') ? 'disabled' : (ts.voice !== false ? 'checked' : '')) + '>' +
+                '</div>' +
+                (G.owns('t_voice') ? (
+                  '<div style="margin-top:6px">' +
+                    '<select class="xp-sel" id="hw-vprof" style="width:100%;font-size:11px">' +
+                      ['corporate:Corporate Authority','warm:Warm & Empathetic','compliance:Federal Compliance','support:Calm Tech Support'].map(x => {
+                        const [v, l] = x.split(':');
+                        return '<option value="' + v + '" ' + (ts.voiceProfile === v ? 'selected' : '') + '>' + l + '</option>';
+                      }).join('') +
+                    '</select>' +
+                  '</div>'
+                ) : '<div class="muted" style="margin-top:6px;font-size:11px">Not owned. Purchase in ScamMart ($260).</div>') +
+              '</div>' +
+            '</div>' +
+          '</div>';
+
+        root.querySelector('#shop').onclick = () => SO.openApp('shop');
+        const addrIn = root.querySelector('#tg-addr');
+        if (addrIn) addrIn.oninput = e => { targetAddr = e.target.value; };
+        const sndIn = root.querySelector('#tg-sender');
+        if (sndIn) sndIn.oninput = e => { senderId = e.target.value; };
+        const modIn = root.querySelector('#tg-mod');
+        if (modIn) modIn.onchange = e => { selMod = e.target.value; render(); };
+
+        const sendBtn = root.querySelector('#tg-send');
+        if (sendBtn) sendBtn.onclick = () => {
+          const r = G.sendPhishGateway({ target: targetAddr, toolId: selMod, sender: senderId });
+          statusMsg = { ok: r.ok, text: r.msg };
+          SO.audio.play(r.ok ? 'blip' : 'error');
+          render();
+        };
+
+        const spChk = root.querySelector('#hw-spoof');
+        if (spChk) spChk.onchange = e => { ts.spoof = e.target.checked; SO.save.save(); };
+        const spName = root.querySelector('#hw-spname');
+        if (spName) spName.oninput = e => { ts.spoofName = e.target.value; SO.save.save(); };
+        const spNum = root.querySelector('#hw-spnum');
+        if (spNum) spNum.oninput = e => { ts.spoofNumber = e.target.value; SO.save.save(); };
+        const vcChk = root.querySelector('#hw-voice');
+        if (vcChk) vcChk.onchange = e => { ts.voice = e.target.checked; SO.save.save(); };
+        const vpSel = root.querySelector('#hw-vprof');
+        if (vpSel) vpSel.onchange = e => { ts.voiceProfile = e.target.value; SO.save.save(); };
+      }
+
+      unsub = G.sub(render);
+      render();
     }
-
-    unsub = G.sub(() => { if (SO.wm.get('tools')) render(); });
-    const iv = setInterval(() => { if (SO.wm.get('tools')) render(); else clearInterval(iv); }, 2000);
-    render();
-    return w;
-  }
-  SO.registerApp({ id: 'tools', name: 'Scam Tools', icon: 'tools', desktop: true, start: true, order: 6, open });
+  });
 })();

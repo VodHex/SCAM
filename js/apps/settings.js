@@ -1,81 +1,119 @@
-/* SCAM OS - Settings: Groq AI, audio, gameplay, wallpaper, data. */
+/* Settings - Workstation Control Panel (AI Key, Voice, Gameplay, Appearance & Save Data) */
 (function () {
-  const SO = window.SO, esc = s => SO.esc(s);
+  const SO = window.SO, G = SO.game, esc = SO.esc;
 
-  function open(args) {
-    const w = SO.wm.open({ id: 'settings', title: 'Control Panel - Settings', icon: 'settings', w: 620, h: 560, minW: 460, minH: 360 });
-    if (!w.fresh) return w;
-    const s = SO.save.d.settings; let tab = (args && args.tab) || 'AI';
-    w.body.innerHTML = '<div class="tabs" id="st-tabs"></div><div class="scroll grow pad" id="st-b"></div>';
-    const q = x => w.body.querySelector(x);
-    const row = (label, html) => '<div class="row" style="gap:10px"><div style="width:170px;flex:none">' + label + '</div><div class="grow row" style="gap:6px">' + html + '</div></div>';
-    /* Every tab is a full-height column: rows spread with even gaps and action
-       buttons anchor to the bottom, so no tab is left with dead space. */
-    const COL = h => '<div style="display:flex;flex-direction:column;gap:18px;height:100%">' + h + '</div>';
-    const BOTTOM = h => '<div style="margin-top:auto">' + h + '</div>';
-    function render() {
-      const tabs = q('#st-tabs'); tabs.innerHTML = '';
-      ['AI', 'Audio', 'Gameplay', 'Display', 'Data'].forEach(t => { const e = document.createElement('div'); e.className = 'tab' + (t === tab ? ' on' : ''); e.textContent = t; e.onclick = () => { tab = t; render(); }; tabs.appendChild(e); });
-      const b = q('#st-b'); b.innerHTML = '';
-      if (tab === 'AI') {
-        b.innerHTML = COL(
-          row('Groq API key', '<input class="xp-input grow" id="st-key" type="password" placeholder="gsk_..." value="' + esc(s.groqKey) + '"><button class="xp-btn small" id="st-show">Show</button>') +
-          row('Chat model', '<select class="xp-input grow" id="st-chat">' + SO.groq.MODELS.map(m => '<option value="' + m + '"' + (m === s.chatModel ? ' selected' : '') + '>' + m + '</option>').join('') + '</select>') +
-          BOTTOM('<div class="row" style="gap:10px"><button class="xp-btn green" id="st-test">Save &amp; test connection</button><span id="st-res" class="muted"></span></div>')
-        );
-        const save = () => { s.groqKey = q('#st-key').value.trim(); s.chatModel = q('#st-chat').value.trim() || 'openai/gpt-oss-20b'; SO.save.save(); };
-        q('#st-show').onclick = () => { const k = q('#st-key'); k.type = k.type === 'password' ? 'text' : 'password'; };
-        q('#st-test').onclick = async () => {
-          save(); const r = q('#st-res'); r.className = 'muted'; r.textContent = 'Testing...';
-          try { const t = await SO.groq.test(); r.className = 'good'; r.textContent = 'Connected! ' + t.model + ' answered in ' + t.ms + ' ms.'; q('#st-chat').value = t.model; SO.game.emit(); }
-          catch (e) { r.className = 'bad'; r.textContent = e.message; }
-        };
-      } else if (tab === 'Audio') {
-        b.innerHTML = COL(
-          '<h3 class="sec" style="margin:0">Audio</h3>' + row('System volume', '<input type="range" min="0" max="1" step="0.05" id="st-vol" class="grow" value="' + s.volume + '">') +
-          row('Mute', '<label><input type="checkbox" id="st-mute"' + (s.muted ? ' checked' : '') + '> Mute everything</label>') +
-          row('Microphone', '<label><input type="checkbox" id="st-am"' + (s.autoMic !== false ? ' checked' : '') + '> Auto mic on call connect</label>') +
-          row('Echo protection', '<label><input type="checkbox" id="st-hp"' + (s.headphones ? ' checked' : '') + '> I use headphones</label>') +
-          BOTTOM(row('Test sound', '<button class="xp-btn small" id="st-snd">Play</button>'))
-        );
-        q('#st-vol').oninput = e => { s.volume = +e.target.value; SO.save.save(); };
-        q('#st-vol').onchange = () => SO.audio.play('ding');
-        q('#st-mute').onchange = e => { s.muted = e.target.checked; SO.save.save(); SO.refreshTray(); };
-        q('#st-hp').onchange = e => { s.headphones = e.target.checked; SO.save.save(); };
-        q('#st-am').onchange = e => { s.autoMic = e.target.checked; SO.save.save(); };
-        q('#st-snd').onclick = () => SO.audio.play('notify');
-      } else if (tab === 'Gameplay') {
-        b.innerHTML = COL(
-          '<h3 class="sec" style="margin:0">Gameplay</h3>' +
-          row('Difficulty', '<select class="xp-input" id="st-diff"><option value="easy">Easy</option><option value="normal">Normal</option><option value="hard">Hard</option></select>') +
-          row('Victim voices (TTS)', '<label><input type="checkbox" id="st-ttson"' + (s.ttsOn ? ' checked' : '') + '> Speak victim replies aloud</label>') +
-          row('Victim voice speed', '<input type="range" min="0.9" max="1.5" step="0.02" id="st-vs" class="grow" value="' + (s.voiceSpeed || 1.12) + '"><span id="st-vsv" style="width:48px">' + (s.voiceSpeed || 1.12).toFixed(2) + 'x</span>') +
-          row('Inbound calls', '<label><input type="checkbox" id="st-inb"' + (s.inbound !== false ? ' checked' : '') + '> Let victims phone you</label>') +
-          row('Auto shift', '<label><input type="checkbox" id="st-as"' + (s.autoShift !== false ? ' checked' : '') + '> End the day after 8 calls</label>')
-        );
-        q('#st-diff').value = s.difficulty; q('#st-diff').onchange = e => { s.difficulty = e.target.value; s.difficultySet = true; SO.save.save(); };
-        q('#st-ttson').onchange = e => { s.ttsOn = e.target.checked; SO.save.save(); };
-        q('#st-vs').oninput = e => { s.voiceSpeed = +e.target.value; q('#st-vsv').textContent = s.voiceSpeed.toFixed(2) + 'x'; SO.save.save(); };
-        q('#st-inb').onchange = e => { s.inbound = e.target.checked; SO.save.save(); };
-        q('#st-as').onchange = e => { s.autoShift = e.target.checked; SO.save.save(); };
-      } else if (tab === 'Display') {
-        b.innerHTML = COL(
-          '<h3 class="sec" style="margin:0">Display</h3>' + row('Wallpaper', '<select class="xp-input" id="st-wp"></select>') +
-          row('Effects', '<label><input type="checkbox" id="st-fl"' + (s.flash ? ' checked' : '') + '> Flashing / shaking effects</label>') +
-          row('', '<label><input type="checkbox" id="st-crt"' + (s.crt ? ' checked' : '') + '> CRT scanlines</label>'));
-        const sel = q('#st-wp'); SO.wallpaperNames.forEach((n, i) => { const o = document.createElement('option'); o.value = i; o.textContent = n; sel.appendChild(o); }); sel.value = s.wallpaper || 0;
-        sel.onchange = () => SO.setWallpaper(+sel.value);
-        q('#st-fl').onchange = e => { s.flash = e.target.checked; document.body.classList.toggle('noflash', !s.flash); SO.save.save(); };
-        q('#st-crt').onchange = e => { s.crt = e.target.checked; document.getElementById('screen').classList.toggle('crt', s.crt); SO.save.save(); };
-      } else {
-        b.innerHTML = '<h3 class="sec">Data</h3><div class="row" style="flex-wrap:wrap"><button class="xp-btn" id="st-ex">Export save</button><button class="xp-btn" id="st-im">Import save</button><button class="xp-btn red" id="st-rs">Reset all data</button></div><textarea class="xp-input selectable" id="st-ta" style="width:100%;height:160px;margin-top:8px" placeholder="Paste a save here to import."></textarea>';
-        q('#st-ex').onclick = () => { const d = JSON.parse(SO.save.exportJSON()); d.settings.groqKey = ''; q('#st-ta').value = JSON.stringify(d, null, 1); };
-        q('#st-im').onclick = () => { try { const k = s.groqKey; SO.save.importJSON(q('#st-ta').value); SO.save.d.settings.groqKey = SO.save.d.settings.groqKey || k; SO.save.save(); SO.game.emit(); SO.msgbox({ title: 'Import', text: 'Save imported.', icon: 'info' }); } catch (e) { SO.msgbox({ title: 'Import failed', text: e.message, icon: 'error' }); } };
-        q('#st-rs').onclick = async () => { const r = await SO.msgbox({ title: 'Reset', icon: 'warn', text: 'Delete ALL progress, settings and your API key?', buttons: ['Cancel', 'Reset'] }); if (r === 'Reset') { SO.save.reset(); location.reload(); } };
+  SO.registerApp('settings', {
+    title: 'Workstation Settings', icon: 'settings', w: 620, h: 500, minW: 500, minH: 400, singleton: true,
+    open(opts) {
+      let tab = (opts && opts.tab) || 'ai';
+      const win = SO.wm.open({
+        id: 'settings', title: this.title, icon: this.icon, w: this.w, h: this.h, minW: this.minW, minH: this.minH,
+        body: '<div class="main"></div>'
+      });
+      const root = win.body.firstChild;
+
+      function render() {
+        const s = SO.save.d.settings;
+        const tabs = [['ai', '🤖 AI & Voice'], ['game', '⚙ Simulation'], ['look', '🖥 Display & Audio'], ['save', '💾 Save Data']];
+        let body = '';
+        if (tab === 'ai') {
+          body =
+            '<div class="group"><div class="group-title">Groq API Key (Required for AI Personas &amp; Live Calls)</div>' +
+              '<div class="muted" style="margin-bottom:6px">Your key is stored only in your browser\'s localStorage and sent directly to <code>api.groq.com</code>.</div>' +
+              '<div class="row"><input type="password" class="xp-in mono" id="key" value="' + esc(s.groqKey || '') + '" placeholder="gsk_..."><button class="xp-btn" id="show">Show</button><button class="xp-btn primary" id="savek">Save</button><button class="xp-btn" id="test">Test Connection</button></div>' +
+              '<div id="testout" class="muted" style="margin-top:6px"></div>' +
+            '</div>' +
+            '<div class="group"><div class="group-title">Models</div>' +
+              '<div class="row" style="justify-content:space-between"><span>Chat / Dialogue Model:</span><select class="xp-sel" id="cm" style="width:270px">' +
+                SO.groq.MODELS.map(m => '<option value="' + m + '" ' + (s.chatModel === m ? 'selected' : '') + '>' + m + '</option>').join('') +
+              '</select></div>' +
+              '<div class="row" style="justify-content:space-between;margin-top:6px"><span>Speech-to-Text (Whisper):</span><select class="xp-sel" id="sm" style="width:270px">' +
+                ['whisper-large-v3-turbo', 'whisper-large-v3'].map(m => '<option value="' + m + '" ' + (s.sttModel === m ? 'selected' : '') + '>' + m + '</option>').join('') +
+              '</select></div>' +
+            '</div>' +
+            '<div class="group"><div class="group-title">Speech &amp; Microphone</div>' +
+              '<label class="row"><input type="checkbox" id="voice" ' + (s.voice !== false ? 'checked' : '') + '> Speak target dialogue out loud (Browser Speech Synthesis)</label>' +
+              '<div class="row" style="justify-content:space-between;margin-top:6px"><span>Target Speech Speed (<b id="vspd-v">' + Number(s.voiceSpeed || 1.12).toFixed(2) + 'x</b>):</span><input type="range" id="vspd" min="0.85" max="1.45" step="0.05" value="' + (s.voiceSpeed || 1.12) + '" style="width:200px"></div>' +
+              '<label class="row" style="margin-top:6px"><input type="checkbox" id="hp" ' + (s.headphones ? 'checked' : '') + '> I am wearing headphones (disable speaker-echo filter)</label>' +
+            '</div>';
+        } else if (tab === 'game') {
+          body =
+            '<div class="group"><div class="group-title">Target Skepticism &amp; Difficulty</div>' +
+              '<div class="row">' +
+                ['easy', 'normal', 'hard'].map(d => '<label class="row" style="margin-right:14px"><input type="radio" name="diff" value="' + d + '" ' + (s.difficulty === d ? 'checked' : '') + '> <b style="text-transform:capitalize">' + d + '</b></label>').join('') +
+              '</div>' +
+              '<div class="muted" style="margin-top:4px">Controls how skeptical targets are and how quickly patience drains on calls.</div>' +
+            '</div>' +
+            '<div class="group"><div class="group-title">Call Center Operations</div>' +
+              '<label class="row"><input type="checkbox" id="inb" ' + (s.inbound !== false ? 'checked' : '') + '> Enable inbound support calls (line rings in system tray &amp; Softphone)</label>' +
+              '<label class="row" style="margin-top:6px"><input type="checkbox" id="ash" ' + (s.autoShift === true ? 'checked' : '') + '> Auto-end shift after 8 calls (default OFF — end shift manually in system tray)</label>' +
+            '</div>';
+        } else if (tab === 'look') {
+          body =
+            '<div class="group"><div class="group-title">Workstation Audio</div>' +
+              '<label class="row"><input type="checkbox" id="mute" ' + (s.muted ? 'checked' : '') + '> Mute all sound effects</label>' +
+              '<div class="row" style="margin-top:6px"><span>Master Volume:</span><input type="range" id="vol" min="0" max="1" step="0.05" value="' + s.volume + '" style="flex:1"><span>' + Math.round(s.volume * 100) + '%</span></div>' +
+            '</div>' +
+            '<div class="group"><div class="group-title">Desktop Wallpaper Theme</div>' +
+              '<div class="row" style="flex-wrap:wrap">' +
+                ['Slate Enterprise', 'Executive Indigo', 'Cyber Grid', 'Sunset Horizon', 'Emerald Matrix'].map((n, i) => '<button class="xp-btn ' + (s.wallpaper === i ? 'primary' : '') + '" data-wp="' + i + '">' + n + '</button>').join('') +
+              '</div>' +
+            '</div>';
+        } else {
+          body =
+            '<div class="group"><div class="group-title">Backup / Restore Simulation State</div>' +
+              '<div class="row"><button class="xp-btn" id="exp">Export Save JSON</button><button class="xp-btn" id="imp">Import JSON</button><button class="xp-btn red" id="wipe">Factory Reset</button></div>' +
+              '<textarea class="xp-ta mono" id="json" rows="9" style="width:100%;margin-top:8px" placeholder="Save JSON will appear here...">' + esc(SO.save.exportJSON()) + '</textarea>' +
+            '</div>';
+        }
+
+        root.innerHTML = '<div class="tabs">' + tabs.map(([id, lbl]) => '<div class="tab ' + (tab === id ? 'active' : '') + '" data-t="' + id + '">' + lbl + '</div>').join('') + '</div><div style="flex:1;overflow:auto;display:flex;flex-direction:column;gap:8px">' + body + '</div>';
+
+        root.querySelectorAll('.tab').forEach(el => el.onclick = () => { tab = el.dataset.t; render(); });
+        const save = () => SO.save.save();
+
+        if (tab === 'ai') {
+          const k = root.querySelector('#key');
+          root.querySelector('#show').onclick = () => { k.type = k.type === 'password' ? 'text' : 'password'; };
+          root.querySelector('#savek').onclick = () => {
+            s.groqKey = k.value.trim(); save();
+            SO.notify('Saved', 'Groq API key saved.', 'tip');
+            if (s.groqKey && (!SO.save.d.leads || !SO.save.d.leads.length)) G.refill(5);
+            G.rearmIncoming && G.rearmIncoming();
+          };
+          root.querySelector('#test').onclick = async () => {
+            s.groqKey = k.value.trim(); save();
+            const out = root.querySelector('#testout'); out.textContent = 'Testing connection to Groq...';
+            try { const r = await SO.groq.test(); out.style.color = '#16a34a'; out.textContent = 'OK (' + r.ms + ' ms, ' + r.model + '): "' + r.text + '"'; }
+            catch (e) { out.style.color = '#dc2626'; out.textContent = e.message; }
+          };
+          root.querySelector('#cm').onchange = e => { s.chatModel = e.target.value; save(); };
+          root.querySelector('#sm').onchange = e => { s.sttModel = e.target.value; save(); };
+          root.querySelector('#voice').onchange = e => { s.voice = e.target.checked; save(); };
+          root.querySelector('#vspd').oninput = e => { s.voiceSpeed = parseFloat(e.target.value); root.querySelector('#vspd-v').textContent = s.voiceSpeed.toFixed(2) + 'x'; save(); };
+          root.querySelector('#hp').onchange = e => { s.headphones = e.target.checked; save(); };
+        } else if (tab === 'game') {
+          root.querySelectorAll('input[name=diff]').forEach(r => r.onchange = () => { s.difficulty = r.value; s.difficultySet = true; save(); });
+          root.querySelector('#inb').onchange = e => { s.inbound = e.target.checked; save(); };
+          root.querySelector('#ash').onchange = e => { s.autoShift = e.target.checked; save(); };
+        } else if (tab === 'look') {
+          root.querySelector('#mute').onchange = e => { s.muted = e.target.checked; save(); };
+          root.querySelector('#vol').oninput = e => { s.volume = parseFloat(e.target.value); save(); render(); };
+          root.querySelectorAll('[data-wp]').forEach(b => b.onclick = () => { s.wallpaper = +b.dataset.wp; save(); SO.os.drawWallpaper(); render(); });
+        } else {
+          const ta = root.querySelector('#json');
+          root.querySelector('#exp').onclick = () => { ta.value = SO.save.exportJSON(); ta.select(); document.execCommand('copy'); SO.notify('Exported', 'Save JSON copied to clipboard.', 'info'); };
+          root.querySelector('#imp').onclick = () => {
+            try { SO.save.importJSON(ta.value); SO.notify('Imported', 'Save state restored.', 'tip'); G.emit(); render(); }
+            catch (e) { SO.msgbox({ title: 'Invalid JSON', icon: 'error', text: e.message }); }
+          };
+          root.querySelector('#wipe').onclick = async () => {
+            const r = await SO.msgbox({ title: 'Factory Reset', icon: 'warn', text: 'Wipe all progress, leads, and cash? Your Groq API key will be preserved.', buttons: ['Cancel', 'Wipe Everything'] });
+            if (r === 1) { const key = s.groqKey; SO.save.reset(); SO.save.d.settings.groqKey = key; SO.save.save(); SO.fs.init(true); G.emit(); render(); }
+          };
+        }
       }
+      render();
     }
-    render();
-    return w;
-  }
-  SO.registerApp({ id: 'settings', name: 'Settings', icon: 'settings', desktop: true, start: true, order: 9, open });
+  });
 })();

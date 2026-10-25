@@ -31,26 +31,49 @@
     mk(m, 'C:\\WINDOWS');
     mk(m, 'C:\\Scam Center\\Scripts');
     mk(m, 'C:\\Scam Center\\Leads');
-    put(m, 'C:\\README.txt', 'SCAM OS - README\r\n\r\nParody game. Nothing here is real.\r\nAll people, companies and scripts are fictional.\r\nDo not scam real people. It is bad. Please be nice.\r\n');
-    put(m, 'C:\\Scam Center\\Scripts\\script1_virus_alert.txt',
-      'CALL SCRIPT #1 - "THE VERY SCARY POPUP" (PARODY)\r\n\r\n' +
-      'YOU: Hello, this is Chad from the Department of Computers.\r\n' +
-      'YOU: Your computer has 4,000,000 viruses. Yes, four million.\r\n' +
-      'YOU: To fix it, please install my totally-not-suspicious program.\r\n\r\n' +
-      '(In real life this is a SCAM. Hang up. This is just a joke file.)\r\n');
-    put(m, 'C:\\Scam Center\\Scripts\\script2_gift_cards.txt',
-      'CALL SCRIPT #2 - "THE GIFT CARD ENTHUSIAST" (PARODY)\r\n\r\n' +
-      'YOU: The tax office requires payment in... (checks notes) ...gift cards.\r\n' +
-      'MARK: That sounds fake.\r\n' +
-      'YOU: No, it is the newest government technology.\r\n\r\n' +
-      'REAL LIFE: No legit agency EVER demands gift cards. Hang up.\r\n');
-    put(m, 'C:\\Scam Center\\Scripts\\script3_prince.txt',
-      'EMAIL SCRIPT #3 - "THE VERY BUSY PRINCE" (PARODY)\r\n\r\n' +
-      'Dear Friend,\r\nI am Prince Reginald of Nowhereistan. I have 40 million\r\n' +
-      'pretend dollars and need a stranger to hold them.\r\nPlease send your bank details and a pic of your cat.\r\n\r\n' +
-      'This is fiction. Delete emails like this.\r\n');
-    put(m, 'C:\\Scam Center\\Leads\\notes.txt', 'Leads are managed in the CRM app.\r\nThis folder is just decoration.\r\n');
-    put(m, 'C:\\Documents and Settings\\Scammer\\My Documents\\todo.txt', 'TODO:\r\n- buy more headsets\r\n- reflect on life choices\r\n- remember: it is only a game\r\n');
+    put(m, 'C:\\README.txt',
+      'SCAM OS — OPERATIONS MANUAL\r\n' +
+      '============================\r\n\r\n' +
+      'Simulation Notice: Every person, institution, bank portal, and asset in this\r\n' +
+      'environment is 100% fictional.\r\n\r\n' +
+      'MANUAL WORKFLOW OVERVIEW:\r\n' +
+      '1. Open Victim Database (CRM) to inspect target profiles and phone numbers.\r\n' +
+      '2. Open Softphone, configure Caller-ID Spoofing if owned, and manually dial\r\n' +
+      '   the target\'s phone number (or answer an incoming ringing line).\r\n' +
+      '3. Take notes on spoken credentials in Notepad or the Softphone Scratchpad:\r\n' +
+      '   - Payment Cards: Manually key the 16-digit card number, expiry, and CVV\r\n' +
+      '     into Card Terminal (FastPay POS).\r\n' +
+      '   - Gift Cards: Manually verify and liquidate the 16-character PIN code\r\n' +
+      '     in CardRedeem (GiftZap OTC Exchange).\r\n' +
+      '   - Remote Access: Manually enter the 9-digit Client ID and 4-digit PIN\r\n' +
+      '     in RemoteDesk to access the target\'s live desktop.\r\n' +
+      '   - Online Banking: Open Nexus Browser, navigate to the target\'s bank URL,\r\n' +
+      '     sign in with their username/password, pass security questions using\r\n' +
+      '     their dossier, and complete SMS 2FA step-up verification.\r\n');
+    put(m, 'C:\\Scam Center\\Scripts\\pretext_bank_fraud.txt',
+      'OPERATIONAL PRETEXT #1 — BANK FRAUD DESK (EDUCATIONAL PARODY)\r\n\r\n' +
+      'Objective: Convince target of an unauthorized pending transaction.\r\n' +
+      '1. Spoof Caller ID to match target\'s bank name (from CRM).\r\n' +
+      '2. State a specific pending wire or card charge and ask if they authorized it.\r\n' +
+      '3. Request identity verification or online banking credentials to "cancel" the charge.\r\n\r\n' +
+      'REAL-WORLD DEFENSE: Real banks never ask you to read back an SMS one-time code\r\n' +
+      'or your online banking password over an inbound call.\r\n');
+    put(m, 'C:\\Scam Center\\Scripts\\pretext_tech_support.txt',
+      'OPERATIONAL PRETEXT #2 — REMOTE TECH SUPPORT (EDUCATIONAL PARODY)\r\n\r\n' +
+      'Objective: Establish a RemoteDesk session on target workstation.\r\n' +
+      '1. Send RemoteDesk installer link via Scam Tools (SMS/Email Gateway).\r\n' +
+      '2. Ask target to read their 9-digit Client ID and 4-digit Session PIN.\r\n' +
+      '3. Connect in RemoteDesk, open cmd.exe / netstat or inspect local files.\r\n\r\n' +
+      'REAL-WORLD DEFENSE: Never install remote-support software for an unsolicited caller.\r\n');
+    put(m, 'C:\\Scam Center\\Scripts\\pretext_tax_agency.txt',
+      'OPERATIONAL PRETEXT #3 — AGENCY COMPLIANCE (EDUCATIONAL PARODY)\r\n\r\n' +
+      'Objective: Create urgency via official case number and badge verification.\r\n' +
+      '1. Register a cover badge in ID Forge & OSINT Registry.\r\n' +
+      '2. Provide your badge number and agency title if questioned.\r\n\r\n' +
+      'REAL-WORLD DEFENSE: Government agencies never demand gift cards, wire transfers,\r\n' +
+      'or cryptocurrency to settle tax or legal matters.\r\n');
+    put(m, 'C:\\Scam Center\\Leads\\notes.txt', 'Target profiles and phone numbers are managed in the Victim Database (CRM) app.\r\n');
+    put(m, 'C:\\Documents and Settings\\Scammer\\My Documents\\scratchpad.txt', 'OPERATOR SCRATCHPAD:\r\n- Record spoken card numbers, gift codes, and bank logins here.\r\n');
   }
 
   function map() {
@@ -199,17 +222,17 @@
   };
   SO.fs = fs;
 
-  /* ---------- shared XP-style popup menus (used by my apps) ---------- */
+  /* ---------- Modern Popup Context Menus ---------- */
   let cur = null, closedOwner = null, closedAt = 0;
   function css() {
     if (document.getElementById('so-xpmenu-css')) return;
     const s = document.createElement('style');
     s.id = 'so-xpmenu-css';
     s.textContent =
-      '.xm-pop{position:fixed;z-index:99999;background:#fff;border:2px solid #404040;border-color:#fff #404040 #404040 #fff;outline:1px solid #808080;padding:2px;min-width:140px;font-size:18px;color:#000;box-shadow:4px 4px 3px rgba(0,0,0,.35)}' +
-      '.xm-it{padding:1px 18px 1px 22px;white-space:nowrap;cursor:default;position:relative}' +
-      '.xm-it:hover{background:#0054e3;color:#fff}.xm-it.dis{color:#808080}.xm-it.dis:hover{background:none;color:#808080}' +
-      '.xm-ck{position:absolute;left:6px}.xm-sep{height:0;border-top:1px solid #808080;border-bottom:1px solid #fff;margin:3px 1px}';
+      '.xm-pop{position:fixed;z-index:99999;background:#ffffff;border:1px solid #cbd5e1;border-radius:8px;padding:4px;min-width:160px;font-size:13px;color:#0f172a;box-shadow:0 12px 28px rgba(0,0,0,.22)}' +
+      '.xm-it{padding:6px 14px 6px 24px;white-space:nowrap;cursor:pointer;position:relative;border-radius:5px;font-weight:500}' +
+      '.xm-it:hover{background:#2563eb;color:#fff}.xm-it.dis{color:#94a3b8;cursor:not-allowed}.xm-it.dis:hover{background:none;color:#94a3b8}' +
+      '.xm-ck{position:absolute;left:8px}.xm-sep{height:1px;background:#e2e8f0;margin:4px 4px}';
     document.head.appendChild(s);
   }
   function closeMenu() {
@@ -228,7 +251,7 @@
       if (it.sep) { const s = document.createElement('div'); s.className = 'xm-sep'; m.appendChild(s); return; }
       const r = document.createElement('div');
       r.className = 'xm-it' + (it.disabled ? ' dis' : '');
-      if (it.check) { const c = document.createElement('span'); c.className = 'xm-ck'; c.textContent = '\u2022'; r.appendChild(c); }
+      if (it.check) { const c = document.createElement('span'); c.className = 'xm-ck'; c.textContent = '\u2713'; r.appendChild(c); }
       r.appendChild(document.createTextNode(it.label));
       r.addEventListener('click', function () {
         if (it.disabled) return;
@@ -239,8 +262,8 @@
     });
     document.body.appendChild(m);
     const rc = m.getBoundingClientRect();
-    m.style.left = Math.max(0, Math.min(x, window.innerWidth - rc.width - 2)) + 'px';
-    m.style.top = Math.max(0, Math.min(y, window.innerHeight - rc.height - 2)) + 'px';
+    m.style.left = Math.max(0, Math.min(x, window.innerWidth - rc.width - 4)) + 'px';
+    m.style.top = Math.max(0, Math.min(y, window.innerHeight - rc.height - 4)) + 'px';
     cur = m;
     document.addEventListener('mousedown', outside, true);
   }
