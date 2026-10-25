@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><title>UI test</title>
+<link rel="stylesheet" href="../css/style.css"></head>
+<body>
+<div id="screen">
+  <div id="boot" class="layer"></div><div id="login" class="layer hidden"></div>
+  <div id="desktop" class="hidden"><canvas id="wallpaper" width="1" height="1"></canvas><div id="wmark"><b>SCAM OS</b><span>Call Center Edition</span></div><div id="icons"></div><div id="wins"></div></div>
+  <div id="taskbar" class="hidden"><button id="startbtn"><span>start</span></button><div id="tasks"></div><div id="tray"></div></div>
+  <div id="startmenu" class="hidden"></div><div id="balloons"></div><div id="overlay"></div>
+</div>
+<pre id="result" style="position:fixed;left:0;top:0;z-index:999999;background:#fff;color:#000;font-size:12px"></pre>
+<script>
+window.__errors = [];
+window.addEventListener('error', e => window.__errors.push('ERR ' + e.message + ' @' + (e.filename || '').split('/').pop() + ':' + e.lineno));
+window.addEventListener('unhandledrejection', e => window.__errors.push('REJ ' + (e.reason && e.reason.message || e.reason)));
+</script>
+<script src="../js/save.js"></script><script src="../js/audio.js"></script><script src="../js/sprites.js"></script><script src="../js/fs.js"></script>
+<script src="../js/wm.js"></script><script src="../js/os.js"></script><script src="../js/data.js"></script><script src="../js/groq.js"></script>
+<script src="../js/voice.js"></script><script src="../js/game.js"></script>
+<script src="../js/apps/notepad.js"></script><script src="../js/apps/explorer.js"></script><script src="../js/apps/minesweeper.js"></script>
+<script src="../js/apps/paint.js"></script><script src="../js/apps/cmd.js"></script><script src="../js/apps/ie.js"></script>
+<script src="../js/apps/phone.js"></script><script src="../js/apps/shop.js"></script><script src="../js/apps/crm.js"></script>
+<script src="../js/apps/mail.js"></script><script src="../js/apps/wallet.js"></script><script src="../js/apps/cardterminal.js"></script>
+<script src="../js/apps/giftredeem.js"></script><script src="../js/apps/remotedesk.js"></script><script src="../js/apps/tools.js"></script>
+<script src="../js/apps/taskmgr.js"></script><script src="../js/apps/awareness.js"></script><script src="../js/apps/settings.js"></script>
+<script src="../js/main.js"></script>
+<script src="ui-test.js"></script>
+</body></html>
