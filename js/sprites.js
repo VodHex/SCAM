@@ -1,87 +1,280 @@
-﻿/* SCAM OS - procedurally drawn 16x16 pixel-art icons (shown scaled with image-rendering: pixelated). */
+/* SCAM OS - Modern High-DPI Vector Icon & Character Portrait Engine (SVG).
+   Replaces pixelated 16x16 icons and blocky avatars with crisp vector graphics and lip-sync portraits. */
 (function () {
-  const SO = window.SO;
+  const SO = (window.SO = window.SO || {});
   const cache = {};
-  const K = '#1a1a2e', W = '#ffffff', G1 = '#c0c0c0', G2 = '#808080', G3 = '#404040';
-  const Y1 = '#ffd94a', Y2 = '#c99a12', R1 = '#e63232', R2 = '#8a1010', B1 = '#2a6bff', B2 = '#0a2f9e';
-  const GR1 = '#3cc23c', GR2 = '#16741c', BR = '#8b5a2b', BG = '#ece9d8';
 
-  function circle(r, cx, cy, rad, col) {
-    for (let y = 0; y < 16; y++) for (let x = 0; x < 16; x++) {
-      const dx = x + 0.5 - cx, dy = y + 0.5 - cy;
-      if (dx * dx + dy * dy <= rad * rad) r(x, y, 1, 1, col);
-    }
+  function svgDataUrl(svg) {
+    return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg.trim());
   }
 
-  const D = {
-    start: r => { r(1, 2, 6, 5, R1); r(8, 2, 7, 5, GR1); r(1, 8, 6, 6, B1); r(8, 8, 7, 6, Y1); r(0, 1, 16, 1, K); r(7, 1, 1, 14, K); r(0, 7, 16, 1, K); r(0, 14, 16, 1, K); },
-    phone: r => { r(1, 8, 14, 6, G1); r(1, 8, 14, 1, W); r(1, 13, 14, 1, G3); r(2, 3, 12, 4, G3); r(1, 4, 2, 4, G3); r(13, 4, 2, 4, G3); r(5, 9, 6, 4, K); r(6, 10, 1, 1, GR1); r(8, 10, 1, 1, GR1); r(6, 12, 1, 1, GR1); r(8, 12, 1, 1, GR1); r(2, 2, 12, 1, K); },
-    shop: r => { r(3, 5, 10, 9, GR1); r(3, 5, 10, 1, GR2); r(3, 13, 10, 1, GR2); r(5, 2, 1, 4, K); r(10, 2, 1, 4, K); r(5, 2, 6, 1, K); r(7, 7, 2, 1, W); r(6, 8, 1, 1, W); r(7, 9, 2, 1, W); r(9, 10, 1, 1, W); r(6, 11, 3, 1, W); r(7, 6, 1, 7, W); },
-    crm: r => { r(1, 2, 14, 12, W); r(1, 2, 14, 3, B1); r(1, 2, 14, 1, B2); r(3, 6, 4, 4, '#f2c28a'); r(3, 10, 4, 3, B2); r(9, 7, 5, 1, G2); r(9, 9, 5, 1, G2); r(9, 11, 3, 1, G2); r(1, 2, 14, 1, K); r(1, 13, 14, 1, K); },
-    notepad: r => { r(3, 2, 11, 13, W); r(3, 2, 11, 3, B1); for (let i = 0; i < 4; i++) r(4 + i * 3, 1, 1, 3, G3); r(5, 7, 7, 1, G2); r(5, 9, 7, 1, G2); r(5, 11, 5, 1, G2); r(2, 2, 1, 13, K); r(14, 2, 1, 13, K); r(2, 14, 13, 1, K); },
-    wallet: r => { r(1, 4, 14, 10, BR); r(1, 4, 14, 1, '#b57a3f'); r(2, 2, 11, 3, GR1); r(2, 2, 11, 1, GR2); r(10, 8, 5, 4, Y1); r(12, 9, 1, 2, Y2); r(1, 13, 14, 1, '#4a2e12'); },
-    tools: r => { r(1, 6, 14, 8, R1); r(1, 6, 14, 1, '#ff7070'); r(1, 13, 14, 1, R2); r(5, 3, 6, 1, K); r(5, 3, 1, 3, K); r(10, 3, 1, 3, K); r(1, 9, 14, 1, R2); r(7, 8, 2, 3, Y1); },
-    mail: r => { r(1, 3, 14, 10, W); r(1, 3, 14, 1, K); r(1, 12, 14, 1, K); r(1, 3, 1, 10, K); r(14, 3, 1, 10, K); for (let i = 0; i < 6; i++) { r(2 + i, 4 + i, 1, 1, G2); r(13 - i, 4 + i, 1, 1, G2); } r(7, 10, 2, 1, G2); },
-    taskmgr: r => { r(1, 2, 14, 10, G1); r(2, 3, 12, 8, K); r(3, 9, 2, 1, GR1); r(4, 8, 2, 1, GR1); r(5, 6, 2, 1, GR1); r(6, 5, 2, 1, GR1); r(8, 7, 2, 1, GR1); r(9, 8, 2, 1, GR1); r(10, 6, 2, 1, GR1); r(5, 12, 6, 2, G2); r(3, 14, 10, 1, G3); },
-    shield: r => { r(3, 1, 10, 8, B1); r(4, 9, 8, 2, B1); r(5, 11, 6, 2, B1); r(7, 13, 2, 2, B1); r(3, 1, 10, 1, B2); r(3, 1, 1, 8, B2); r(12, 1, 1, 8, B2); r(5, 6, 2, 2, W); r(6, 7, 2, 2, W); r(8, 5, 2, 3, W); r(9, 4, 2, 2, W); },
-    settings: r => { r(1, 3, 14, 10, BG); r(1, 3, 14, 1, G3); r(1, 12, 14, 1, G3); r(1, 3, 1, 10, G3); r(14, 3, 1, 10, G3); r(3, 5, 10, 1, G2); r(3, 8, 10, 1, G2); r(3, 11, 10, 1, G2); r(5, 4, 2, 3, B1); r(9, 7, 2, 3, R1); r(6, 10, 2, 3, GR1); },
-    mines: r => { circle(r, 8, 8, 4.5, K); r(7, 1, 2, 14, K); r(1, 7, 14, 2, K); r(3, 3, 2, 2, K); r(11, 3, 2, 2, K); r(3, 11, 2, 2, K); r(11, 11, 2, 2, K); r(6, 6, 2, 2, W); },
-    paint: r => { circle(r, 8, 8, 7, '#e8c88a'); circle(r, 8, 8, 7, '#e8c88a'); r(4, 5, 2, 2, R1); r(8, 3, 2, 2, B1); r(11, 6, 2, 2, GR1); r(10, 10, 2, 2, Y1); circle(r, 5, 11, 2, BG); r(0, 0, 0, 0, K); },
-    cmd: r => { r(1, 2, 14, 12, K); r(1, 2, 14, 2, G2); r(3, 6, 1, 1, W); r(4, 7, 1, 1, W); r(3, 8, 1, 1, W); r(6, 8, 4, 1, W); r(1, 13, 14, 1, G3); },
-    bin: r => { r(3, 4, 10, 10, G1); r(2, 3, 12, 2, G2); r(6, 1, 4, 2, G2); r(5, 6, 1, 7, G2); r(8, 6, 1, 7, G2); r(11, 6, 1, 7, G2); r(3, 13, 10, 1, G3); },
-    ie: r => { circle(r, 8, 8, 7, B1); circle(r, 8, 8, 4, BG); r(6, 7, 5, 1, B2); r(6, 9, 5, 1, B2); r(6, 7, 1, 3, B2); r(10, 7, 1, 2, B2); r(1, 6, 14, 2, Y1); r(0, 0, 0, 0, K); },
-    computer: r => { r(2, 2, 12, 9, BG); r(2, 2, 12, 1, W); r(3, 3, 10, 7, B1); r(4, 4, 8, 3, '#6fb4ff'); r(6, 11, 4, 2, G2); r(3, 13, 10, 2, BG); r(3, 14, 10, 1, G2); r(2, 2, 12, 1, K); },
-    folder: r => { r(1, 3, 6, 2, Y2); r(1, 4, 14, 9, Y1); r(1, 4, 14, 1, '#ffe98a'); r(1, 12, 14, 1, Y2); r(1, 5, 14, 1, Y2); },
-    file: r => { r(3, 1, 10, 14, W); r(3, 1, 10, 1, K); r(3, 14, 10, 1, K); r(3, 1, 1, 14, K); r(12, 1, 1, 14, K); r(5, 4, 6, 1, G2); r(5, 6, 6, 1, G2); r(5, 8, 6, 1, G2); r(5, 10, 4, 1, G2); },
-    user: r => { circle(r, 8, 5, 3.5, '#f2c28a'); r(4, 9, 8, 6, B1); r(4, 9, 8, 1, B2); r(6, 4, 1, 1, K); r(9, 4, 1, 1, K); },
-    warn: r => { for (let y = 0; y < 13; y++) { const w = 1 + y; r(8 - Math.ceil(w / 2), 2 + y, w + (w % 2 ? 0 : 0), 1, Y1); } r(7, 6, 2, 5, K); r(7, 12, 2, 2, K); },
-    skull: r => { circle(r, 8, 6, 5.5, W); r(4, 10, 8, 4, W); r(4, 5, 3, 3, K); r(9, 5, 3, 3, K); r(7, 8, 2, 2, K); r(5, 12, 1, 3, K); r(7, 12, 1, 3, K); r(9, 12, 1, 3, K); r(11, 12, 1, 2, K); },
-    cash: r => { r(1, 4, 14, 8, GR1); r(1, 4, 14, 1, GR2); r(1, 11, 14, 1, GR2); circle(r, 8, 8, 2.5, GR2); r(7, 7, 2, 2, '#c9ffc9'); r(2, 5, 1, 1, GR2); r(13, 10, 1, 1, GR2); },
-    info: r => { circle(r, 8, 8, 7, B1); r(7, 3, 2, 2, W); r(7, 6, 2, 7, W); },
-    error: r => { circle(r, 8, 8, 7, R1); for (let i = 0; i < 8; i++) { r(4 + i, 4 + i, 2, 1, W); r(10 - i, 4 + i, 2, 1, W); } },
-    tip: r => { circle(r, 8, 6, 5, Y1); r(6, 11, 4, 3, G2); r(7, 14, 2, 1, G3); r(7, 5, 2, 3, W); },
+  function wrapIcon(bg1, bg2, inner) {
+    return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+      <defs>
+        <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stop-color="${bg1}"/>
+          <stop offset="100%" stop-color="${bg2}"/>
+        </linearGradient>
+        <filter id="s" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="2" stdDeviation="1.5" flood-color="#000" flood-opacity="0.28"/>
+        </filter>
+      </defs>
+      <rect x="4" y="4" width="56" height="56" rx="14" fill="url(#g)" stroke="rgba(255,255,255,0.18)" stroke-width="1.5"/>
+      <g filter="url(#s)">${inner}</g>
+    </svg>`;
+  }
 
-    mic: r => { r(6, 1, 4, 8, G3); r(7, 2, 1, 5, G1); r(5, 2, 1, 6, G3); r(10, 2, 1, 6, G3); r(4, 7, 1, 3, G3); r(11, 7, 1, 3, G3); r(5, 10, 6, 1, G3); r(7, 11, 2, 3, G3); r(5, 14, 6, 1, G3); },
-    micoff: r => { D.mic(r); for (let i = 0; i < 14; i++) { r(1 + i, 1 + i, 2, 1, R1); } r(0, 0, 0, 0, K); },
-    speaker: r => { r(2, 6, 3, 4, G3); r(5, 5, 2, 6, G3); r(7, 3, 2, 10, G3); r(10, 5, 1, 6, G3); r(12, 3, 1, 10, G3); r(3, 7, 1, 2, G1); },
-    speakeroff: r => { r(2, 6, 3, 4, G3); r(5, 5, 2, 6, G3); r(7, 3, 2, 10, G3); for (let i = 0; i < 5; i++) { r(10 + i, 5 + i, 1, 1, R1); r(14 - i, 5 + i, 1, 1, R1); r(10 + i, 5 + i + 1, 1, 1, R1); r(14 - i, 5 + i + 1, 1, 1, R1); } },
-    headset: r => { r(4, 2, 8, 1, G3); r(3, 3, 1, 2, G3); r(12, 3, 1, 2, G3); r(2, 5, 1, 4, G3); r(13, 5, 1, 4, G3); r(1, 8, 3, 5, B1); r(12, 8, 3, 5, B1); r(1, 8, 3, 1, B2); r(12, 8, 3, 1, B2); r(4, 12, 3, 1, G3); r(6, 13, 4, 1, G3); },
-    hangup: r => { r(2, 6, 12, 4, R1); r(1, 8, 3, 4, R1); r(12, 8, 3, 4, R1); r(2, 6, 12, 1, '#ff8a8a'); r(5, 9, 6, 1, R2); r(3, 12, 1, 1, R2); r(12, 12, 1, 1, R2); },
-    send: r => { r(2, 7, 9, 2, B1); r(9, 4, 2, 8, B1); r(11, 5, 1, 6, B1); r(12, 6, 1, 4, B1); r(13, 7, 1, 2, B1); r(2, 7, 9, 1, '#6fa4ff'); },
-    stop: r => { r(4, 2, 8, 12, R1); r(2, 4, 12, 8, R1); r(5, 7, 6, 2, W); },
-    script: r => { D.notepad(r); },
-    lock: r => { r(3, 7, 10, 8, Y1); r(3, 7, 10, 1, Y2); r(5, 2, 1, 6, G3); r(10, 2, 1, 6, G3); r(5, 2, 6, 1, G3); r(7, 10, 2, 3, K); },
-    police: r => { r(2, 6, 12, 6, B1); r(3, 3, 4, 3, R1); r(9, 3, 4, 3, B2); r(3, 12, 3, 2, K); r(10, 12, 3, 2, K); r(4, 7, 8, 2, W); },
-    card: r => { r(1, 3, 14, 10, B2); r(1, 3, 14, 1, '#4a7aff'); r(1, 12, 14, 1, '#001a5e'); r(1, 5, 14, 2, K); r(3, 8, 3, 2, Y1); r(7, 9, 6, 1, W); r(3, 11, 4, 1, G1); },
-    id: r => { r(6, 0, 4, 2, G2); r(7, 0, 1, 3, G3); r(3, 2, 10, 12, BG); r(3, 2, 10, 1, '#fff'); r(3, 13, 10, 1, G2); r(3, 2, 1, 12, G1); r(12, 2, 1, 12, G2); r(4, 4, 4, 4, '#f2c28a'); r(4, 4, 4, 1, '#6b4423'); r(4, 8, 4, 2, B1); r(9, 5, 4, 1, G2); r(9, 7, 4, 1, G2); r(9, 9, 4, 1, G2); r(4, 11, 9, 2, Y2); },
-    bank: r => { r(1, 4, 14, 2, '#4a7aff'); r(0, 6, 16, 1, B2); r(2, 7, 2, 6, BG); r(6, 7, 2, 6, BG); r(10, 7, 2, 6, BG); r(14, 7, 0, 6, BG); r(13, 7, 2, 6, BG); r(2, 13, 12, 1, G2); r(1, 14, 14, 1, G3); r(7, 7, 2, 6, '#f7e37a'); r(6, 1, 4, 2, '#f7e37a'); },
-    giftcard: r => { r(2, 3, 12, 10, R1); r(2, 3, 12, 1, '#ff7070'); r(2, 12, 12, 1, R2); r(7, 3, 2, 10, Y1); r(2, 7, 12, 2, Y1); r(5, 1, 3, 2, Y1); r(8, 1, 3, 2, Y1); },
-    pos: r => { r(2, 1, 12, 14, G3); r(3, 2, 10, 1, G2); r(3, 3, 10, 4, '#1b3b1b'); r(4, 4, 8, 2, GR1); r(3, 8, 10, 6, G2); for(let y=0;y<3;y++) for(let x=0;x<3;x++) r(4+x*3, 9+y*2, 2, 1, K); },
-    remotedesk: r => { r(1, 1, 10, 8, '#2a6bff'); r(2, 2, 8, 6, '#ffffff'); r(5, 9, 2, 3, '#888888'); r(3, 12, 6, 1, '#888888'); r(7, 6, 8, 8, '#e63232'); r(8, 7, 6, 6, '#ffffff'); r(9, 8, 4, 4, '#e63232'); }
+  const ICONS = {
+    start: () => wrapIcon('#2563eb', '#1d4ed8', `
+      <rect x="16" y="16" width="14" height="14" rx="3" fill="#fff"/>
+      <rect x="34" y="16" width="14" height="14" rx="3" fill="#93c5fd"/>
+      <rect x="16" y="34" width="14" height="14" rx="3" fill="#93c5fd"/>
+      <rect x="34" y="34" width="14" height="14" rx="3" fill="#60a5fa"/>
+    `),
+    phone: () => wrapIcon('#10b981', '#047857', `
+      <path d="M22 16c1.5 0 3 1 3.6 2.4l2 4.8c.5 1.2.2 2.6-.8 3.5l-2.6 2.2c2 3.8 5.1 6.9 8.9 8.9l2.2-2.6c.9-1 2.3-1.3 3.5-.8l4.8 2c1.4.6 2.4 2.1 2.4 3.6v2c0 2.2-1.8 4-4 4C27.6 46 18 36.4 18 20c0-2.2 1.8-4 4-4h0z" fill="#fff"/>
+    `),
+    shop: () => wrapIcon('#8b5cf6', '#6d28d9', `
+      <path d="M18 24h28l-2.5 22a3 3 0 0 1-3 2.6h-17a3 3 0 0 1-3-2.6L18 24z" fill="#fff"/>
+      <path d="M25 24v-3a7 7 0 0 1 14 0v3" fill="none" stroke="#ede9fe" stroke-width="3.2" stroke-linecap="round"/>
+      <circle cx="27" cy="34" r="2" fill="#6d28d9"/>
+      <circle cx="37" cy="34" r="2" fill="#6d28d9"/>
+    `),
+    crm: () => wrapIcon('#0ea5e9', '#0369a1', `
+      <circle cx="26" cy="24" r="6" fill="#fff"/>
+      <path d="M15 44c0-5.5 4.9-10 11-10s11 4.5 11 10" fill="#fff"/>
+      <circle cx="41" cy="26" r="4.5" fill="#bae6fd"/>
+      <path d="M36 44c.5-4.2 3.8-7.5 8.5-7.5 2.5 0 4.5 1 5.5 2.5" fill="none" stroke="#bae6fd" stroke-width="3" stroke-linecap="round"/>
+    `),
+    notepad: () => wrapIcon('#f59e0b', '#d97706', `
+      <rect x="17" y="14" width="30" height="36" rx="4" fill="#fff"/>
+      <line x1="22" y1="23" x2="42" y2="23" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="22" y1="30" x2="42" y2="30" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="22" y1="37" x2="35" y2="37" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+      <rect x="17" y="14" width="30" height="5" rx="2" fill="#fef3c7"/>
+    `),
+    wallet: () => wrapIcon('#14b8a6', '#0f766e', `
+      <rect x="14" y="18" width="36" height="28" rx="5" fill="#fff"/>
+      <path d="M14 25h36" stroke="#0f766e" stroke-width="3"/>
+      <rect x="34" y="30" width="12" height="9" rx="3" fill="#0d9488"/>
+      <circle cx="38" cy="34.5" r="1.8" fill="#fff"/>
+    `),
+    tools: () => wrapIcon('#ef4444', '#b91c1c', `
+      <path d="M38.5 16a8.5 8.5 0 0 0-7.9 11.6L17 41.2a3.2 3.2 0 0 0 4.5 4.5l13.6-13.6A8.5 8.5 0 0 0 46.5 21l-4.5 4.5-4-1-1-4 4.5-4.5a8.4 8.4 0 0 0-3 0z" fill="#fff"/>
+    `),
+    mail: () => wrapIcon('#3b82f6', '#1d4ed8', `
+      <rect x="14" y="19" width="36" height="26" rx="4" fill="#fff"/>
+      <path d="M16 21l16 12 16-12" fill="none" stroke="#2563eb" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+    `),
+    taskmgr: () => wrapIcon('#1e293b', '#0f172a', `
+      <rect x="13" y="15" width="38" height="34" rx="4" fill="#090d16" stroke="#475569" stroke-width="2"/>
+      <polyline points="17,36 24,36 28,23 33,41 37,30 41,34 47,34" fill="none" stroke="#22c55e" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
+    `),
+    shield: () => wrapIcon('#2563eb', '#1e40af', `
+      <path d="M32 13l16 6v11c0 10.5-6.8 18.8-16 21-9.2-2.2-16-10.5-16-21V19l16-6z" fill="#fff"/>
+      <path d="M25 32l5 5 10-10" fill="none" stroke="#1d4ed8" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"/>
+    `),
+    settings: () => wrapIcon('#475569', '#334155', `
+      <circle cx="32" cy="32" r="11" fill="none" stroke="#fff" stroke-width="5" stroke-dasharray="6 4"/>
+      <circle cx="32" cy="32" r="9" fill="none" stroke="#fff" stroke-width="4"/>
+      <circle cx="32" cy="32" r="4" fill="#334155"/>
+    `),
+    mines: () => wrapIcon('#374151', '#111827', `
+      <circle cx="32" cy="32" r="11" fill="#fff"/>
+      <line x1="32" y1="14" x2="32" y2="50" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="14" y1="32" x2="50" y2="32" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="19" y1="19" x2="45" y2="45" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="45" y1="19" x2="19" y2="45" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <circle cx="28" cy="28" r="3" fill="#ef4444"/>
+    `),
+    paint: () => wrapIcon('#ec4899', '#be185d', `
+      <path d="M32 14c-10 0-18 7.5-18 17 0 6 4.5 10 9.5 10 2 0 3.5 1.2 3.5 3 0 3 2.5 5 5.5 5 9.8 0 17.5-7.8 17.5-17.5C50 21.8 41.9 14 32 14z" fill="#fff"/>
+      <circle cx="24" cy="26" r="3" fill="#ef4444"/>
+      <circle cx="32" cy="22" r="3" fill="#3b82f6"/>
+      <circle cx="40" cy="26" r="3" fill="#10b981"/>
+      <circle cx="41" cy="34" r="3" fill="#f59e0b"/>
+    `),
+    cmd: () => wrapIcon('#18181b', '#09090b', `
+      <rect x="12" y="16" width="40" height="32" rx="4" fill="#09090b" stroke="#52525b" stroke-width="2"/>
+      <polyline points="20,25 27,31 20,37" fill="none" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      <line x1="30" y1="37" x2="40" y2="37" stroke="#e4e4e7" stroke-width="3" stroke-linecap="round"/>
+    `),
+    bin: () => wrapIcon('#64748b', '#475569', `
+      <path d="M21 22h22l-2 25a2 2 0 0 1-2 2H25a2 2 0 0 1-2-2l-2-25z" fill="#fff"/>
+      <path d="M18 19h28" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <path d="M27 16h10" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="28" y1="27" x2="28" y2="43" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+      <line x1="36" y1="27" x2="36" y2="43" stroke="#64748b" stroke-width="2.2" stroke-linecap="round"/>
+    `),
+    ie: () => wrapIcon('#0284c7', '#1d4ed8', `
+      <circle cx="32" cy="32" r="17" fill="#fff"/>
+      <ellipse cx="32" cy="32" rx="8" ry="17" fill="none" stroke="#0284c7" stroke-width="2.2"/>
+      <line x1="15" y1="32" x2="49" y2="32" stroke="#0284c7" stroke-width="2.2"/>
+      <line x1="18" y1="24" x2="46" y2="24" stroke="#0284c7" stroke-width="1.8"/>
+      <line x1="18" y1="40" x2="46" y2="40" stroke="#0284c7" stroke-width="1.8"/>
+    `),
+    computer: () => wrapIcon('#3b82f6', '#1e3a8a', `
+      <rect x="14" y="16" width="36" height="25" rx="3" fill="#fff"/>
+      <rect x="17" y="19" width="30" height="19" rx="1.5" fill="#1e40af"/>
+      <path d="M26 41h12l2 6H24l2-6z" fill="#cbd5e1"/>
+      <rect x="21" y="46" width="22" height="2.5" rx="1" fill="#fff"/>
+    `),
+    folder: () => wrapIcon('#f59e0b', '#d97706', `
+      <path d="M14 20a3 3 0 0 1 3-3h10l4 4h16a3 3 0 0 1 3 3v20a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V20z" fill="#fef3c7"/>
+      <path d="M14 26h36v18a3 3 0 0 1-3 3H17a3 3 0 0 1-3-3V26z" fill="#fff"/>
+    `),
+    file: () => wrapIcon('#64748b', '#334155', `
+      <path d="M20 14h16l10 10v26a2 2 0 0 1-2 2H20a2 2 0 0 1-2-2V16a2 2 0 0 1 2-2z" fill="#fff"/>
+      <path d="M36 14v10h10" fill="#cbd5e1"/>
+      <line x1="23" y1="31" x2="41" y2="31" stroke="#64748b" stroke-width="2.4" stroke-linecap="round"/>
+      <line x1="23" y1="37" x2="41" y2="37" stroke="#64748b" stroke-width="2.4" stroke-linecap="round"/>
+      <line x1="23" y1="43" x2="34" y2="43" stroke="#64748b" stroke-width="2.4" stroke-linecap="round"/>
+    `),
+    user: () => wrapIcon('#6366f1', '#4338ca', `
+      <circle cx="32" cy="24" r="8" fill="#fff"/>
+      <path d="M17 47c0-7.5 6.7-13 15-13s15 5.5 15 13" fill="#fff"/>
+    `),
+    warn: () => wrapIcon('#f59e0b', '#b45309', `
+      <path d="M32 14L50 47H14L32 14z" fill="#fff" stroke="#fff" stroke-width="2" stroke-linejoin="round"/>
+      <line x1="32" y1="25" x2="32" y2="36" stroke="#b45309" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="32" cy="42" r="2.2" fill="#b45309"/>
+    `),
+    skull: () => wrapIcon('#dc2626', '#7f1d1d', `
+      <path d="M32 15c-9 0-15 6.2-15 14.5 0 4.8 2.2 8.8 5.5 11.2V46h19v-5.3c3.3-2.4 5.5-6.4 5.5-11.2C47 21.2 41 15 32 15z" fill="#fff"/>
+      <circle cx="26.5" cy="29" r="3.5" fill="#7f1d1d"/>
+      <circle cx="37.5" cy="29" r="3.5" fill="#7f1d1d"/>
+      <line x1="28" y1="42" x2="28" y2="46" stroke="#7f1d1d" stroke-width="2"/>
+      <line x1="32" y1="42" x2="32" y2="46" stroke="#7f1d1d" stroke-width="2"/>
+      <line x1="36" y1="42" x2="36" y2="46" stroke="#7f1d1d" stroke-width="2"/>
+    `),
+    cash: () => wrapIcon('#10b981', '#059669', `
+      <rect x="12" y="19" width="40" height="26" rx="4" fill="#fff"/>
+      <circle cx="32" cy="32" r="7" fill="#10b981"/>
+      <text x="32" y="36.5" text-anchor="middle" font-family="sans-serif" font-weight="bold" font-size="13" fill="#fff">$</text>
+    `),
+    info: () => wrapIcon('#3b82f6', '#1d4ed8', `
+      <circle cx="32" cy="32" r="16" fill="#fff"/>
+      <circle cx="32" cy="23" r="2.3" fill="#1d4ed8"/>
+      <line x1="32" y1="29" x2="32" y2="41" stroke="#1d4ed8" stroke-width="3.5" stroke-linecap="round"/>
+    `),
+    error: () => wrapIcon('#ef4444', '#b91c1c', `
+      <circle cx="32" cy="32" r="16" fill="#fff"/>
+      <line x1="25" y1="25" x2="39" y2="39" stroke="#b91c1c" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="39" y1="25" x2="25" y2="39" stroke="#b91c1c" stroke-width="3.5" stroke-linecap="round"/>
+    `),
+    tip: () => wrapIcon('#eab308', '#ca8a04', `
+      <path d="M32 14a12 12 0 0 0-7 21.7V41a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5.3A12 12 0 0 0 32 14z" fill="#fff"/>
+      <rect x="27" y="45" width="10" height="3.5" rx="1.5" fill="#fef08a"/>
+    `),
+    mic: () => wrapIcon('#334155', '#1e293b', `
+      <rect x="26" y="14" width="12" height="21" rx="6" fill="#fff"/>
+      <path d="M20 27a12 12 0 0 0 24 0" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="32" y1="39" x2="32" y2="47" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <line x1="25" y1="47" x2="39" y2="47" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+    `),
+    micoff: () => wrapIcon('#dc2626', '#991b1b', `
+      <rect x="26" y="14" width="12" height="21" rx="6" fill="#fca5a5"/>
+      <path d="M20 27a12 12 0 0 0 24 0" fill="none" stroke="#fca5a5" stroke-width="3" stroke-linecap="round"/>
+      <line x1="16" y1="16" x2="48" y2="48" stroke="#fff" stroke-width="4" stroke-linecap="round"/>
+    `),
+    speaker: () => wrapIcon('#334155', '#1e293b', `
+      <path d="M16 26h8l10-8v28l-10-8h-8z" fill="#fff"/>
+      <path d="M40 24a10 10 0 0 1 0 16" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+      <path d="M45 19a17 17 0 0 1 0 26" fill="none" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+    `),
+    speakeroff: () => wrapIcon('#dc2626', '#991b1b', `
+      <path d="M16 26h8l10-8v28l-10-8h-8z" fill="#fff"/>
+      <line x1="40" y1="26" x2="50" y2="38" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+      <line x1="50" y1="26" x2="40" y2="38" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+    `),
+    headset: () => wrapIcon('#4f46e5', '#3730a3', `
+      <path d="M18 34v-4a14 14 0 0 1 28 0v4" fill="none" stroke="#fff" stroke-width="3.5" stroke-linecap="round"/>
+      <rect x="14" y="31" width="7" height="13" rx="3" fill="#fff"/>
+      <rect x="43" y="31" width="7" height="13" rx="3" fill="#fff"/>
+      <path d="M46 44c0 3.5-4 5-11 5" fill="none" stroke="#c7d2fe" stroke-width="2.5" stroke-linecap="round"/>
+    `),
+    hangup: () => wrapIcon('#ef4444', '#b91c1c', `
+      <path d="M12 35c5-6 12-9 20-9s15 3 20 9l-4.5 5.5a3 3 0 0 1-3.8.4l-4.7-3.2V33c-4.5-1.2-9.5-1.2-14 0v4.7l-4.7 3.2a3 3 0 0 1-3.8-.4L12 35z" fill="#fff"/>
+    `),
+    send: () => wrapIcon('#2563eb', '#1d4ed8', `
+      <path d="M15 31L48 16 37 49l-7-11-15-7z" fill="#fff" stroke="#fff" stroke-width="1.5" stroke-linejoin="round"/>
+    `),
+    stop: () => wrapIcon('#dc2626', '#991b1b', `
+      <rect x="20" y="20" width="24" height="24" rx="4" fill="#fff"/>
+    `),
+    script: () => ICONS.notepad(),
+    lock: () => wrapIcon('#f59e0b', '#b45309', `
+      <rect x="17" y="28" width="30" height="22" rx="4" fill="#fff"/>
+      <path d="M23 28v-6a9 9 0 0 1 18 0v6" fill="none" stroke="#fff" stroke-width="3.5"/>
+      <circle cx="32" cy="39" r="3" fill="#b45309"/>
+    `),
+    police: () => wrapIcon('#1e3a8a', '#991b1b', `
+      <path d="M32 13l15 6v12c0 10-6.5 18-15 20-8.5-2-15-10-15-20V19l15-6z" fill="#fff"/>
+      <polygon points="32,20 34.9,26 41.5,26.9 36.7,31.5 37.8,38 32,34.9 26.2,38 27.3,31.5 22.5,26.9 29.1,26" fill="#1e3a8a"/>
+    `),
+    card: () => wrapIcon('#2563eb', '#1e3a8a', `
+      <rect x="12" y="18" width="40" height="28" rx="4" fill="#fff"/>
+      <rect x="12" y="24" width="40" height="6" fill="#1e293b"/>
+      <rect x="17" y="35" width="9" height="6" rx="1.5" fill="#f59e0b"/>
+      <line x1="30" y1="38" x2="46" y2="38" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+    `),
+    id: () => wrapIcon('#0f766e', '#115e59', `
+      <rect x="13" y="17" width="38" height="30" rx="4" fill="#fff"/>
+      <circle cx="24" cy="29" r="4.5" fill="#0f766e"/>
+      <path d="M17 41c0-3.5 3.1-6 7-6s7 2.5 7 6" fill="#0f766e"/>
+      <line x1="34" y1="26" x2="46" y2="26" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="34" y1="32" x2="46" y2="32" stroke="#64748b" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="34" y1="38" x2="42" y2="38" stroke="#94a3b8" stroke-width="2.5" stroke-linecap="round"/>
+    `),
+    bank: () => wrapIcon('#1e3a8a', '#0f172a', `
+      <polygon points="32,13 50,23 14,23" fill="#fff"/>
+      <rect x="18" y="25" width="4" height="16" fill="#cbd5e1"/>
+      <rect x="26" y="25" width="4" height="16" fill="#cbd5e1"/>
+      <rect x="34" y="25" width="4" height="16" fill="#cbd5e1"/>
+      <rect x="42" y="25" width="4" height="16" fill="#cbd5e1"/>
+      <rect x="14" y="42" width="36" height="5" rx="1.5" fill="#fff"/>
+    `),
+    giftcard: () => wrapIcon('#e11d48', '#9f1239', `
+      <rect x="12" y="18" width="40" height="28" rx="4" fill="#fff"/>
+      <rect x="28" y="18" width="5" height="28" fill="#e11d48"/>
+      <rect x="12" y="29" width="40" height="5" fill="#e11d48"/>
+      <circle cx="30.5" cy="31.5" r="5" fill="#fbbf24"/>
+    `),
+    pos: () => wrapIcon('#059669', '#065f46', `
+      <rect x="18" y="11" width="28" height="42" rx="4" fill="#fff"/>
+      <rect x="22" y="15" width="20" height="11" rx="2" fill="#064e3b"/>
+      <text x="32" y="23.5" text-anchor="middle" font-family="monospace" font-weight="bold" font-size="9" fill="#34d399">$0.00</text>
+      <circle cx="25" cy="32" r="2" fill="#475569"/><circle cx="32" cy="32" r="2" fill="#475569"/><circle cx="39" cy="32" r="2" fill="#475569"/>
+      <circle cx="25" cy="39" r="2" fill="#475569"/><circle cx="32" cy="39" r="2" fill="#475569"/><circle cx="39" cy="39" r="2" fill="#475569"/>
+      <rect x="23" y="44" width="18" height="4" rx="1.5" fill="#10b981"/>
+    `),
+    remotedesk: () => wrapIcon('#4f46e5', '#312e81', `
+      <rect x="12" y="15" width="30" height="22" rx="3" fill="#fff"/>
+      <rect x="22" y="25" width="30" height="22" rx="3" fill="#818cf8" stroke="#fff" stroke-width="2"/>
+      <path d="M33 36l8-4-4 8-1.5-2.5L33 36z" fill="#fff"/>
+    `)
   };
 
   SO.icon = function (key) {
     if (cache[key]) return cache[key];
-    const c = document.createElement('canvas');
-    c.width = 16; c.height = 16;
-    const x = c.getContext('2d');
-    const r = (px, py, w, h, col) => { x.fillStyle = col; x.fillRect(px, py, w, h); };
-    try { (D[key] || D.file)(r); } catch (e) { D.file(r); }
-    return (cache[key] = c.toDataURL());
-  };
-  SO.iconImg = function (key, size) {
-    return '<img class="ico" src="' + SO.icon(key) + '" width="' + (size || 16) + '" height="' + (size || 16) + '" alt="">';
+    const fn = ICONS[key] || ICONS.file;
+    return (cache[key] = svgDataUrl(fn()));
   };
 
-  /* Pixel avatar for victims/NPCs: a seeded 24x24 bust. Renders TWO frames
-     (mouth closed + mouth open) so the call view can lip-flap while the victim
-     speaks. Same seed+opts always draws the same face. */
-  function avatarKey(seed, opts) { return 'av_' + seed + '|' + ((opts && opts.gender) || '?') + '|' + ((opts && opts.age) || 0); }
+  SO.iconImg = function (key, size) {
+    const sz = size || 18;
+    return '<img class="ico" src="' + SO.icon(key) + '" width="' + sz + '" height="' + sz + '" alt="">';
+  };
+
+  /* High-DPI SVG Character Portrait Generator (with lip-sync open/closed mouth frames) */
+  function avatarKey(seed, opts) {
+    return 'av_' + seed + '|' + ((opts && opts.gender) || '?') + '|' + ((opts && opts.age) || 0);
+  }
   SO.avatarUrl = function (seed, opts, talk) {
     const key = avatarKey(seed, opts);
     if (!cache[key]) {
-      cache[key] = drawBust(seed, opts, false);
-      cache[key + '|t'] = drawBust(seed, opts, true);
+      cache[key] = drawVectorPortrait(seed, opts, false);
+      cache[key + '|t'] = drawVectorPortrait(seed, opts, true);
     }
     return cache[talk ? (key + '|t') : key];
   };
@@ -90,97 +283,117 @@
     return '<img class="avatar" src="' + SO.avatarUrl(seed, opts, false) + '" width="' + sz + '" height="' + sz + '" alt="">';
   };
 
-  function drawBust(seed, opts, talk) {
-    let h = 7; const s = String(seed);
-    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; if (!h) h = 9;
+  function drawVectorPortrait(seed, opts, talk) {
+    let h = 7;
+    const s = String(seed);
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    if (!h) h = 9;
     const rnd = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296; };
-    const female = (opts && opts.gender) === 'female';
-    const old = ((opts && opts.age) || 40) >= 62;
-    const c = document.createElement('canvas'); c.width = 24; c.height = 24;
-    const x = c.getContext('2d');
-    const r = (px, py, w, h2, col) => { x.fillStyle = col; x.fillRect(px, py, w, h2); };
 
-    const skins = ['#f6c9a0', '#eab894', '#dc9f70', '#c68642', '#a06a38', '#8a5430', '#ffdbac'];
-    const hairCols = ['#1f1a17', '#42302a', '#6b4423', '#8a5a2b', '#c9a227', '#b5412b', '#2b2b2b', '#575153'];
-    const shirts = ['#2a6bff', '#e63232', '#3cc23c', '#9b4dca', '#ff9f1a', '#20b2aa', '#556277', '#c2185b', '#7a5230'];
-    const walls = [['#9ec9ff', '#7ba7e8'], ['#bfe8c8', '#95cbaa'], ['#f2e3c2', '#dcc59a'], ['#e3d2f7', '#c5aee6'], ['#f7cbc4', '#e2a094'], ['#cfd8e3', '#a9b6c6']];
-    const caps = [['#b03a2e', '#7d241d'], ['#2e5fb0', '#1d3d7d'], ['#2e8b57', '#1d5c3a'], ['#4a4a4a', '#2e2e2e']];
+    const female = (opts && opts.gender) === 'female';
+    const age = (opts && opts.age) || 40;
+    const old = age >= 62;
+
+    const skins = ['#f8d5b8', '#eec19c', '#dfb18b', '#c99366', '#a87246', '#8d5832', '#ffe0c8'];
+    const hairCols = ['#1c1917', '#3f2e21', '#6b4423', '#92400e', '#ca8a04', '#9a3412', '#27272a', '#52525b'];
+    const shirts = ['#2563eb', '#dc2626', '#059669', '#7c3aed', '#d97706', '#0d9488', '#334155', '#db2777', '#4f46e5'];
+    const bgs = [
+      ['#1e293b', '#0f172a'],
+      ['#1e3a8a', '#172554'],
+      ['#064e3b', '#022c22'],
+      ['#3b0764', '#1e1b4b'],
+      ['#451a03', '#1c1917'],
+      ['#312e81', '#0f172a']
+    ];
+
     const skin = skins[Math.floor(rnd() * skins.length)];
     let hair = hairCols[Math.floor(rnd() * hairCols.length)];
     const shirt = shirts[Math.floor(rnd() * shirts.length)];
-    const wall = walls[Math.floor(rnd() * walls.length)];
-    const glasses = rnd() < (old ? 0.45 : 0.3);
-    const earring = female ? rnd() < 0.55 : rnd() < 0.18;
-    const necklace = rnd() < 0.45;
-    const blush = female && rnd() < 0.6;
-    const lipstick = female && rnd() < 0.75;
-    const stubble = !female && rnd() < 0.3;
-    const mustache = !female && rnd() < 0.22;
-    if (old && rnd() < 0.72) hair = ['#d9d9d9', '#bdbdbd', '#8f8f8f'][Math.floor(rnd() * 3)];
-    const shade = 'rgba(0,0,0,0.18)', lite = 'rgba(255,255,255,0.16)', dark = '#1b1414';
-    const lipc = lipstick ? '#c2415e' : '#9c4a3c';
+    const bg = bgs[Math.floor(rnd() * bgs.length)];
+    const glasses = rnd() < (old ? 0.5 : 0.28);
+    const mustache = !female && rnd() < 0.25;
+    const beard = !female && rnd() < 0.2;
+    const hairStyle = Math.floor(rnd() * 4);
+    if (old && rnd() < 0.75) hair = ['#e4e4e7', '#d4d4d8', '#a1a1aa'][Math.floor(rnd() * 3)];
 
-    // room wall + trim
-    r(0, 0, 24, 24, wall[0]);
-    r(0, 17, 24, 7, wall[1]);
-    r(0, 17, 24, 1, lite);
-
-    // ears + earrings
-    r(6, 10, 1, 2, skin); r(17, 10, 1, 2, skin);
-    if (earring) { r(6, 12, 1, 1, '#f3d34a'); if (female) r(17, 12, 1, 1, '#f3d34a'); }
-
-    // head (rounded block)
-    r(9, 4, 6, 1, skin); r(8, 5, 8, 1, skin);
-    r(7, 6, 10, 8, skin); r(8, 14, 8, 1, skin);
-    r(16, 7, 1, 7, shade);            // right cheek shadow
-    r(8, 7, 1, 6, lite);              // left highlight
-    r(9, 14, 6, 1, 'rgba(0,0,0,0.10)'); // chin
-
-    // neck
-    r(10, 15, 4, 3, skin); r(10, 17, 4, 1, shade);
-
-    // shoulders / torso
-    r(2, 18, 20, 6, shirt);
-    r(1, 19, 1, 5, shirt); r(22, 19, 1, 5, shirt);
-    r(0, 21, 1, 3, shirt); r(23, 21, 1, 3, shirt);
-    r(2, 18, 20, 1, lite); r(2, 23, 20, 1, 'rgba(0,0,0,0.15)');
-    r(9, 19, 1, 4, '#f4f4f4'); r(14, 19, 1, 4, '#f4f4f4');   // collar
-    if (necklace) { r(11, 20, 2, 1, '#f3d34a'); r(11, 21, 1, 1, '#f3d34a'); r(12, 21, 1, 1, '#f3d34a'); }
-
-    // hair styles (drawn over head + may cover shoulders)
-    const H = hair;
-    const hs = Math.floor(rnd() * (female ? 5 : 6));
+    let hairBack = '', hairFront = '';
     if (female) {
-      if (hs === 0) { r(6, 2, 12, 4, H); r(5, 4, 2, 13, H); r(17, 4, 2, 13, H); r(5, 15, 2, 2, H); r(17, 15, 2, 2, H); r(7, 5, 3, 1, H); r(14, 5, 3, 1, H); }   // long
-      else if (hs === 1) { r(6, 2, 12, 4, H); r(5, 4, 2, 8, H); r(17, 4, 2, 8, H); r(7, 5, 4, 1, H); r(13, 5, 4, 1, H); }                                        // bob
-      else if (hs === 2) { r(6, 2, 12, 4, H); r(9, 0, 6, 2, H); r(6, 4, 1, 4, H); r(17, 4, 1, 4, H); }                                                           // bun
-      else if (hs === 3) { r(6, 2, 12, 5, H); r(6, 5, 1, 4, H); r(17, 5, 1, 4, H); r(6, 5, 3, 2, H); r(15, 5, 3, 2, H); }                                        // pixie
-      else { r(6, 2, 12, 4, H); r(5, 3, 2, 7, H); r(17, 2, 2, 10, H); r(16, 12, 3, 2, H); }                                                                      // ponytail
+      if (hairStyle === 0) {
+        hairBack = `<path d="M26 48 C22 72, 24 98, 30 112 L98 112 C104 98, 106 72, 102 48 Z" fill="${hair}"/>`;
+        hairFront = `<path d="M30 48 C30 22, 98 22, 98 48 C86 34, 52 34, 30 48 Z" fill="${hair}"/>`;
+      } else if (hairStyle === 1) {
+        hairBack = `<path d="M28 48 C25 68, 28 86, 36 92 L92 92 C100 86, 103 68, 100 48 Z" fill="${hair}"/>`;
+        hairFront = `<path d="M30 50 C30 20, 98 20, 98 50 C82 36, 46 36, 30 50 Z" fill="${hair}"/>`;
+      } else if (hairStyle === 2) {
+        hairBack = `<circle cx="64" cy="20" r="14" fill="${hair}"/>`;
+        hairFront = `<path d="M32 48 C32 22, 96 22, 96 48 C80 35, 48 35, 32 48 Z" fill="${hair}"/>`;
+      } else {
+        hairBack = `<path d="M28 45 C24 65, 28 85, 34 96 L94 96 C100 85, 104 65, 100 45 Z" fill="${hair}"/>`;
+        hairFront = `<path d="M32 46 C34 22, 94 22, 96 46 C76 34, 52 38, 32 46 Z" fill="${hair}"/>`;
+      }
     } else {
-      if (hs === 0) { r(6, 2, 12, 4, H); r(6, 4, 1, 2, H); r(17, 4, 1, 2, H); }                                                                                  // crop
-      else if (hs === 1) { r(6, 2, 12, 4, H); r(6, 5, 5, 1, H); r(6, 6, 2, 1, H); }                                                                              // side part
-      else if (hs === 2) { r(6, 2, 3, 1, H); r(15, 2, 3, 1, H); r(6, 3, 2, 2, H); r(16, 3, 2, 2, H); }                                                           // receding
-      else if (hs === 3) { r(7, 10, 1, 2, H); }                                                                                                                  // bald + sideburns
-      else if (hs === 4) { r(7, 3, 10, 2, H); r(7, 10, 1, 1, H); r(16, 10, 1, 1, H); }                                                                           // buzz
-      else { const cap = caps[Math.floor(rnd() * caps.length)]; r(6, 1, 12, 4, cap[0]); r(6, 5, 12, 1, cap[1]); r(0, 0, 0, 0, K); }                              // cap
+      if (hairStyle === 0) {
+        hairFront = `<path d="M32 48 C30 20, 98 20, 96 48 C84 32, 44 32, 32 48 Z" fill="${hair}"/>`;
+      } else if (hairStyle === 1) {
+        hairFront = `<path d="M33 45 C33 23, 95 23, 95 45 C86 35, 42 35, 33 45 Z" fill="${hair}"/>`;
+      } else if (hairStyle === 2) {
+        hairFront = `<path d="M33 46 C33 34, 42 28, 48 34 M80 34 C86 28, 95 34, 95 46" stroke="${hair}" stroke-width="6" fill="none" stroke-linecap="round"/>`;
+      } else {
+        hairFront = `<path d="M31 46 C31 18, 97 18, 97 46 L102 46 L96 34 L32 34 L26 46 Z" fill="#1e40af"/>`;
+      }
     }
 
-    // face details
-    if (old) r(9, 6, 6, 1, 'rgba(0,0,0,0.09)');
-    r(9, 7, 2, 1, dark); r(13, 7, 2, 1, dark);                          // brows
-    r(9, 9, 2, 2, '#fff'); r(10, 10, 1, 1, dark);                       // left eye
-    r(13, 9, 2, 2, '#fff'); r(13, 10, 1, 1, dark);                      // right eye
-    r(11, 11, 1, 2, shade);                                             // nose
-    if (old) { r(7, 9, 1, 1, shade); r(16, 9, 1, 1, shade); r(7, 10, 1, 1, shade); r(16, 10, 1, 1, shade); }
-    if (blush) { r(8, 12, 1, 1, 'rgba(224,110,110,0.4)'); r(15, 12, 1, 1, 'rgba(224,110,110,0.4)'); }
-    if (mustache) r(10, 12, 4, 1, H);
-    if (stubble) { r(8, 13, 8, 1, 'rgba(0,0,0,0.13)'); r(9, 14, 6, 1, 'rgba(0,0,0,0.18)'); }
-    if (glasses) { r(8, 8, 4, 1, '#2b2b2b'); r(12, 8, 4, 1, '#2b2b2b'); r(7, 9, 1, 1, '#2b2b2b'); r(16, 9, 1, 1, '#2b2b2b'); }
+    const mouthSvg = talk
+      ? `<ellipse cx="64" cy="76" rx="7.5" ry="5.2" fill="#581c1c" stroke="#be123c" stroke-width="1.5"/>
+         <rect x="59" y="71.5" width="10" height="2.4" rx="1" fill="#fff"/>`
+      : `<path d="M56 75 Q64 ${female ? 79 : 77} 72 75" fill="none" stroke="${female ? '#be123c' : '#6b2f24'}" stroke-width="2.6" stroke-linecap="round"/>`;
 
-    // MOUTH: the only thing that differs between the closed and talking frame.
-    if (talk) { r(10, 12, 4, 3, '#6b1f14'); r(10, 12, 4, 1, '#fff'); r(9, 13, 1, 1, lipc); r(14, 13, 1, 1, lipc); }
-    else r(10, 13, 4, 1, lipc);
+    const wrinkles = old
+      ? `<path d="M48 42 Q64 40 80 42" fill="none" stroke="rgba(0,0,0,0.18)" stroke-width="1.4" stroke-linecap="round"/>
+         <path d="M47 68 Q44 74 47 78 M81 68 Q84 74 81 78" fill="none" stroke="rgba(0,0,0,0.16)" stroke-width="1.3" stroke-linecap="round"/>`
+      : '';
 
-    return c.toDataURL();
+    const glassesSvg = glasses
+      ? `<g stroke="#1e293b" stroke-width="2.2" fill="rgba(255,255,255,0.14)">
+           <rect x="42" y="49" width="17" height="12" rx="3"/>
+           <rect x="69" y="49" width="17" height="12" rx="3"/>
+           <line x1="59" y1="54" x2="69" y2="54"/>
+           <line x1="34" y1="53" x2="42" y2="54"/>
+           <line x1="86" y1="54" x2="94" y2="53"/>
+         </g>`
+      : '';
+
+    const facialHair = (beard ? `<path d="M36 66 C36 88, 52 94, 64 94 C76 94, 92 88, 92 66 C88 78, 78 86, 64 86 C50 86, 40 78, 36 66 Z" fill="${hair}" opacity="0.85"/>` : '') +
+      (mustache ? `<path d="M53 71 Q64 67 75 71" fill="none" stroke="${hair}" stroke-width="3.6" stroke-linecap="round"/>` : '');
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+      <defs>
+        <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="${bg[0]}"/>
+          <stop offset="100%" stop-color="${bg[1]}"/>
+        </linearGradient>
+      </defs>
+      <rect width="128" height="128" rx="18" fill="url(#bg)"/>
+      ${hairBack}
+      <path d="M22 128 C22 98, 42 90, 64 90 C86 90, 106 98, 106 128 Z" fill="${shirt}"/>
+      <path d="M52 90 L64 106 L76 90" fill="#f8fafc" opacity="0.9"/>
+      <rect x="54" y="78" width="20" height="18" rx="6" fill="${skin}"/>
+      <circle cx="33" cy="58" r="6" fill="${skin}"/>
+      <circle cx="95" cy="58" r="6" fill="${skin}"/>
+      <rect x="34" y="26" width="60" height="64" rx="28" fill="${skin}"/>
+      ${wrinkles}
+      <path d="M45 47 Q51 44 56 47" fill="none" stroke="${hair}" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M72 47 Q77 44 83 47" fill="none" stroke="${hair}" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="51" cy="55" r="3.2" fill="#0f172a"/>
+      <circle cx="77" cy="55" r="3.2" fill="#0f172a"/>
+      <circle cx="52" cy="54" r="1" fill="#fff"/>
+      <circle cx="78" cy="54" r="1" fill="#fff"/>
+      <path d="M64 54 L62 65 L66 66" fill="none" stroke="rgba(0,0,0,0.22)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      ${facialHair}
+      ${mouthSvg}
+      ${glassesSvg}
+      ${hairFront}
+    </svg>`;
+    return svgDataUrl(svg);
   }
 })();

@@ -1,4 +1,4 @@
-/* SCAM OS - shell: boot, login, desktop, start menu, tray, notifications, dialogs, wallpapers, draggable icons. */
+/* SCAM OS - Modern Workstation Shell: boot, login, desktop, launcher, system tray, notifications, dialogs, wallpapers, draggable icons. */
 (function () {
   const SO = window.SO;
   const apps = {};
@@ -44,7 +44,7 @@
     opts = opts || {};
     const b = document.createElement('div');
     b.className = 'balloon';
-    b.innerHTML = '<span class="x">x</span><b>' + SO.iconImg(icon || 'info', 16) + esc(title) + '</b><div class="selectable">' + esc(text || '') + '</div>';
+    b.innerHTML = '<span class="x">&times;</span><b>' + SO.iconImg(icon || 'info', 18) + esc(title) + '</b><div class="selectable" style="color:#cbd5e1">' + esc(text || '') + '</div>';
     if (opts.actions) {
       const ac = document.createElement('div'); ac.className = 'actions';
       opts.actions.forEach(a => {
@@ -65,8 +65,10 @@
   SO.bsod = function (text, ms) {
     const d = document.createElement('div');
     d.className = 'bsod';
-    d.textContent = 'A problem has been detected and SCAM OS has been shut down to prevent damage to your computer.\n\n' +
-      (text || 'VICTIM_HAS_NOT_PAID_EXCEPTION') + '\n\nIf this is the first time you have seen this stop error screen, restart your computer. If this screen appears again, call 1-800-TOTALLY-LEGIT immediately and have your gift cards ready.\n\n(This is a parody. Nothing here is real. Click anywhere to continue.)\n\n*** STOP: 0x000000SC (0x0000DEAD, 0xBADC0DE5, 0x00000000, 0x00000000)';
+    d.textContent = 'KERNEL PANIC — SYSTEM HALTED\n\n' +
+      (text || 'EXCEPTION_IN_SIMULATION_KERNEL') + '\n\n' +
+      '(Simulation diagnostics screen. Click anywhere to dismiss.)\n\n' +
+      '*** STATUS: 0x000000SC (0x0000DEAD, 0xBADC0DE5, 0x00000000, 0x00000000)';
     const kill = () => d.remove();
     d.onclick = kill;
     $('screen').appendChild(d);
@@ -74,13 +76,42 @@
     if (ms) setTimeout(kill, ms);
   };
 
-  /* ---------- solid-color wallpapers ---------- */
-  const WP = [['Luna Blue', '#3a6ea5'], ['Deep Navy', '#0b1a3a'], ['Teal', '#0f5f66'], ['Charcoal', '#23252b'], ['Scam Green', '#1c5a2e'], ['Blood Red', '#6a1620'], ['Purple Haze', '#3b2466']];
+  /* ---------- High-Resolution Procedural Wallpapers ---------- */
+  const WP = [
+    ['Midnight Slate', '#0f172a', '#1e3a8a', '#090d16'],
+    ['Cyber Matrix', '#064e3b', '#0f172a', '#022c22'],
+    ['Executive Obsidian', '#18181b', '#27272a', '#09090b'],
+    ['Nordic Indigo', '#1e1b4b', '#312e81', '#0f172a'],
+    ['Emerald Ops', '#0f766e', '#115e59', '#042f2e'],
+    ['Crimson Alert', '#450a0a', '#7f1d1d', '#090d16'],
+    ['Royal Amethyst', '#3b0764', '#4c1d95', '#0f172a']
+  ];
   SO.wallpaperNames = WP.map(w => w[0]);
   function drawWallpaper() {
     const i = Math.min(WP.length - 1, Math.max(0, SO.save.d.settings.wallpaper || 0));
-    const c = $('wallpaper'); c.width = 1; c.height = 1;
-    const x = c.getContext('2d'); x.fillStyle = WP[i][1]; x.fillRect(0, 0, 1, 1);
+    const c = $('wallpaper');
+    if (!c) return;
+    const w = Math.max(640, window.innerWidth || 1280);
+    const h = Math.max(480, window.innerHeight || 800);
+    c.width = w; c.height = h;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, WP[i][1]);
+    g.addColorStop(0.55, WP[i][2]);
+    g.addColorStop(1, WP[i][3]);
+    x.fillStyle = g;
+    x.fillRect(0, 0, w, h);
+
+    // Subtle geometric grid overlay for modern workstation look
+    x.strokeStyle = 'rgba(255,255,255,0.03)';
+    x.lineWidth = 1;
+    const step = 48;
+    for (let px = 0; px < w; px += step) {
+      x.beginPath(); x.moveTo(px, 0); x.lineTo(px, h); x.stroke();
+    }
+    for (let py = 0; py < h; py += step) {
+      x.beginPath(); x.moveTo(0, py); x.lineTo(w, py); x.stroke();
+    }
   }
   SO.setWallpaper = function (i) { SO.save.d.settings.wallpaper = i; SO.save.save(); drawWallpaper(); };
 
@@ -107,7 +138,8 @@
     return { cols, rows, occ };
   }
   function renderIcons() {
-    const box = $('icons'); box.innerHTML = '';
+    const box = $('icons'); if (!box) return;
+    box.innerHTML = '';
     const list = Object.values(apps).filter(a => a.desktop).sort((p, q) => (p.order || 99) - (q.order || 99));
     const d = SO.save.d;
     layoutPositions(list);
@@ -121,7 +153,14 @@
       el.style.left = (PAD + p.c * CW) + 'px'; el.style.top = (PAD + p.r * CH) + 'px';
       el.onclick = e => { e.stopPropagation(); if (justDragged) return; selIcon = a.id; markSel(); };
       el.ondblclick = e => { e.stopPropagation(); SO.openApp(a.id); };
-      el.oncontextmenu = e => { e.preventDefault(); e.stopPropagation(); selIcon = a.id; markSel(); SO.xpmenu && SO.xpmenu.pop([{ label: 'Open', fn: () => SO.openApp(a.id) }, { sep: true }, { label: 'Properties', fn: () => SO.msgbox({ title: a.name + ' Properties', text: a.name + '\nA totally legitimate program.\n(Parody game: nothing here is real.)', icon: 'info' }) }], e.clientX, e.clientY); };
+      el.oncontextmenu = e => {
+        e.preventDefault(); e.stopPropagation(); selIcon = a.id; markSel();
+        SO.xpmenu && SO.xpmenu.pop([
+          { label: 'Launch ' + a.name, fn: () => SO.openApp(a.id) },
+          { sep: true },
+          { label: 'Application Info', fn: () => SO.msgbox({ title: a.name, text: a.name + '\nSCAM OS Enterprise Workstation Module.\n(Educational simulation: all systems are fictional.)', icon: 'info' }) }
+        ], e.clientX, e.clientY);
+      };
       el.addEventListener('pointerdown', e => startIconDrag(e, el, a.id));
       box.appendChild(el);
     });
@@ -157,13 +196,14 @@
   }
   function markSel() { document.querySelectorAll('.dicon').forEach(d => d.classList.toggle('sel', d.dataset.id === selIcon)); }
 
-  /* ---------- start menu ---------- */
+  /* ---------- App Launcher (Start Menu) ---------- */
   const PLACES = ['computer', 'mail', 'wallet', 'idforge', 'shop', 'awareness', 'taskmgr', 'cmd', 'settings'];
   function buildStart() {
     const m = $('startmenu');
     const left = Object.values(apps).filter(a => a.start).sort((p, q) => (p.order || 99) - (q.order || 99));
-    m.innerHTML = '<div class="sm-head">' + SO.avatar('player', 40) + '<span>Scammer</span></div><div class="sm-body"><div class="sm-l scroll"></div><div class="sm-r"></div></div>' +
-      '<div class="sm-foot"><button data-a="logoff">' + SO.iconImg('user', 20) + 'Log Off</button><button data-a="off">' + SO.iconImg('skull', 20) + 'Shut Down</button></div>';
+    m.innerHTML = '<div class="sm-head">' + SO.avatar('operator_main', 38) + '<div><div>Operator Workstation</div><div style="font-size:11.5px;color:#94a3b8;font-weight:400">Level ' + (SO.game ? SO.game.level() : 1) + ' &bull; Active Session</div></div></div>' +
+      '<div class="sm-body"><div class="sm-l scroll"></div><div class="sm-r"></div></div>' +
+      '<div class="sm-foot"><button data-a="logoff">' + SO.iconImg('user', 16) + 'Lock Session</button><button data-a="off">' + SO.iconImg('skull', 16) + 'Power</button></div>';
     const L = m.querySelector('.sm-l'), R = m.querySelector('.sm-r');
     const item = a => { const d = document.createElement('div'); d.className = 'sm-it'; d.innerHTML = '<img src="' + SO.icon(a.icon) + '"><span>' + esc(a.name) + '</span>'; d.onclick = () => SO.openApp(a.id); return d; };
     left.forEach(a => L.appendChild(item(a)));
@@ -177,13 +217,13 @@
   function shutdownDlg() {
     const dim = document.createElement('div');
     dim.className = 'dim shutdown';
-    dim.innerHTML = '<div class="dlg" style="min-width:min(380px,92vw)"><div class="tb"><span class="tb-title">Turn off computer</span></div><div class="dbody" style="justify-content:space-around;padding:20px;flex-wrap:wrap"></div><div class="dfoot"><button class="xp-btn">Cancel</button></div></div>';
+    dim.innerHTML = '<div class="dlg" style="min-width:min(380px,92vw)"><div class="tb"><span class="tb-title">System Power</span></div><div class="dbody" style="justify-content:space-around;padding:24px;flex-wrap:wrap"></div><div class="dfoot"><button class="xp-btn">Cancel</button></div></div>';
     const body = dim.querySelector('.dbody');
     [['Stand By', 'info', () => { dim.remove(); standby(); }],
-     ['Turn Off', 'skull', () => { dim.remove(); powerOff(); }],
-     ['Restart', 'warn', () => { dim.remove(); SO.os.restart(false); }]].forEach(([l, ic, fn]) => {
-      const b = document.createElement('div'); b.style.cssText = 'text-align:center;cursor:pointer;width:90px';
-      b.innerHTML = '<img src="' + SO.icon(ic) + '" style="width:48px;height:48px"><div>' + l + '</div>'; b.onclick = fn; body.appendChild(b);
+     ['Power Off', 'skull', () => { dim.remove(); powerOff(); }],
+     ['Reboot', 'warn', () => { dim.remove(); SO.os.restart(false); }]].forEach(([l, ic, fn]) => {
+      const b = document.createElement('div'); b.style.cssText = 'text-align:center;cursor:pointer;width:96px;padding:10px;border-radius:8px;border:1px solid #e2e8f0';
+      b.innerHTML = '<img src="' + SO.icon(ic) + '" style="width:42px;height:42px;margin-bottom:6px"><div style="font-weight:600;font-size:12.5px">' + l + '</div>'; b.onclick = fn; body.appendChild(b);
     });
     dim.querySelector('.xp-btn').onclick = () => dim.remove();
     $('overlay').appendChild(dim);
@@ -191,8 +231,8 @@
   function standby() {
     SO.save.save(); SO.game && SO.game.stop();
     const s = document.createElement('div');
-    s.style.cssText = 'position:absolute;inset:0;background:#000;z-index:99970;cursor:pointer;';
-    s.innerHTML = '<div style="position:absolute;bottom:28px;left:0;right:0;text-align:center;color:#4a4a4a;font-size:16px">SCAM OS is standing by &mdash; click anywhere or press a key to resume</div>';
+    s.style.cssText = 'position:absolute;inset:0;background:#090d16;z-index:99970;cursor:pointer;';
+    s.innerHTML = '<div style="position:absolute;bottom:32px;left:0;right:0;text-align:center;color:#64748b;font-size:13px">Workstation in Standby &mdash; click or press any key to wake</div>';
     $('screen').appendChild(s);
     const wake = () => { s.remove(); document.removeEventListener('keydown', wake, true); SO.audio.play('ding'); if (SO.game) SO.game.start(); };
     s.addEventListener('pointerdown', wake, true);
@@ -202,33 +242,49 @@
     SO.save.save(); SO.game && SO.game.stop();
     SO.wm.closeAll();
     const d = document.createElement('div');
-    d.style.cssText = 'position:absolute;inset:0;background:#000;z-index:99990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;color:#ff9a2e;font-size:30px;text-align:center';
-    d.innerHTML = 'It is now safe to turn off your computer.<br><span style="font-size:18px;color:#888">(Parody game. Nothing here is real.)</span><button class="xp-btn">Power On</button>';
+    d.style.cssText = 'position:absolute;inset:0;background:#090d16;z-index:99990;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:20px;color:#f8fafc;font-size:22px;font-weight:700;text-align:center';
+    d.innerHTML = 'Workstation Powered Off<br><span style="font-size:13px;font-weight:400;color:#64748b">(Simulation environment. Nothing here is real.)</span><button class="xp-btn blue">Power On</button>';
     d.querySelector('button').onclick = () => { d.remove(); SO.os.restart(false); };
     $('screen').appendChild(d);
   }
 
-  /* ---------- tray ---------- */
-  function clock() { const d = new Date(); let h = d.getHours(); const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap; }
+  /* ---------- System Tray ---------- */
+  function clock() {
+    const d = new Date();
+    let h = d.getHours();
+    const ap = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + String(d.getMinutes()).padStart(2, '0') + ' ' + ap;
+  }
   function renderTray() {
     const t = $('tray'); if (!t) return;
-    const d = SO.save.d, q = SO.game.quota();
-    const shift = 'Shift: ' + d.callsToday + ' call(s), ' + SO.game.fmt(d.earnedToday) + ' banked / quota ' + SO.game.fmt(q);
-    t.innerHTML = '<div class="t" title="Heat: police attention. 100 = raid!">HEAT<div class="heat"><i style="width:' + Math.min(100, d.heat) + '%"></i></div></div>' +
-      '<div class="t" title="Cash">' + SO.iconImg('cash', 16) + '$' + Math.floor(d.cash).toLocaleString() + '</div>' +
-      '<div class="t" id="trayshift" title="' + shift + ' - click to END THE SHIFT (day closes, codes die, quota is checked)" style="cursor:pointer">End Shift</div>' +
-      '<div class="t" id="trayvol" title="' + (d.settings.muted ? 'Sound is muted. Click to unmute' : 'Click to mute all sound') + '" style="cursor:pointer">' + SO.iconImg(d.settings.muted ? 'speakeroff' : 'speaker', 18) + '</div>' +
-      '<div class="t">Day ' + d.day + '</div><div class="t">' + clock() + '</div>';
+    const d = SO.save.d, q = SO.game ? SO.game.quota() : 200;
+    const shift = 'Shift: ' + d.callsToday + ' call(s), ' + (SO.game ? SO.game.fmt(d.earnedToday) : '$0') + ' banked / quota ' + (SO.game ? SO.game.fmt(q) : '$200');
+    const inc = SO.game && SO.game.pendingIncoming ? SO.game.pendingIncoming : null;
+    const incHtml = inc
+      ? '<div class="t tray-ringing" id="trayinc" title="Inbound Line Ringing: ' + esc(inc.lead.name) + ' (' + esc(inc.lead.phone || '555-0000') + ') — Click to open Softphone">' + SO.iconImg('phone', 14) + ' LINE RINGING</div>'
+      : '';
+    t.innerHTML =
+      incHtml +
+      '<div class="t" title="Police Heat: ' + Math.round(d.heat) + '%. 100% triggers a raid!"><span style="font-size:11px;font-weight:700;color:#94a3b8">HEAT</span><div class="heat"><i style="width:' + Math.min(100, d.heat) + '%"></i></div><span class="mono" style="font-size:11.5px">' + Math.round(d.heat) + '%</span></div>' +
+      '<div class="t mono" title="Available Cash">' + SO.iconImg('cash', 15) + '$' + Math.floor(d.cash).toLocaleString() + '</div>' +
+      '<div class="t" id="trayshift" title="' + shift + ' — Click to manually clock out &amp; end shift" style="cursor:pointer;padding:2px 8px;border-radius:5px;background:rgba(255,255,255,0.08)">End Shift</div>' +
+      '<div class="t" id="trayvol" title="' + (d.settings.muted ? 'Sound muted. Click to unmute' : 'Click to mute sound') + '" style="cursor:pointer">' + SO.iconImg(d.settings.muted ? 'speakeroff' : 'speaker', 16) + '</div>' +
+      '<div class="t" style="color:#94a3b8">Day ' + d.day + '</div>' +
+      '<div class="t mono">' + clock() + '</div>';
+
+    const ti = t.querySelector('#trayinc');
+    if (ti) ti.onclick = () => SO.openApp('phone');
     t.querySelector('#trayvol').onclick = () => { SO.audio.toggleMute(); renderTray(); };
     const sh = t.querySelector('#trayshift');
     if (sh) sh.onclick = async () => {
       const d2 = SO.save.d;
       const met = d2.earnedToday >= q;
       const r = await SO.msgbox({
-        title: 'End shift?', icon: 'info',
-        text: 'Banked so far: ' + SO.game.fmt(d2.earnedToday) + ' (quota ' + SO.game.fmt(q) + ')\n\n' +
-          (met ? 'Quota met! The boss pays a bonus and heat goes down.' : 'Quota MISSED: heat goes up.') +
-          '\n\nUnused one-time codes DIE overnight, like real bank codes do.',
+        title: 'End Shift & Close Day?', icon: 'info',
+        text: 'Banked today: ' + SO.game.fmt(d2.earnedToday) + ' (Daily Quota: ' + SO.game.fmt(q) + ')\n\n' +
+          (met ? 'Quota MET: +$100 bonus and -5% Heat.' : 'Quota MISSED: +6% Heat penalty.') +
+          '\n\nUnused one-time SMS codes and pending step-up sessions expire overnight.',
         buttons: ['Cancel', 'End shift']
       });
       if (r === 'End shift') SO.game.endDay();
@@ -240,37 +296,43 @@
   function boot() {
     const b = $('boot'); b.classList.remove('hidden');
     $('login').classList.add('hidden'); $('desktop').classList.add('hidden'); $('taskbar').classList.add('hidden');
-    b.innerHTML = '<div class="logo">SCAM OS<small>PROFESSIONAL EDITION</small></div><div class="bar"><i></i><i></i><i></i></div><div class="msg"></div><div class="skip">click to skip <b class="arr">&rarr;</b></div>';
-    const msgs = ['Loading fake drivers...', 'Initializing victim database...', 'Spoofing caller ID...', 'Bribing the firewall...', 'Counting imaginary money...', 'Starting TotallyLegit services...'];
+    b.innerHTML = '<div class="logo">SCAM OS<small>ENTERPRISE WORKSTATION v4.0</small></div><div class="bar"><i></i><i></i><i></i></div><div class="msg"></div><div class="skip">Skip boot <b class="arr">&rarr;</b></div>';
+    const msgs = [
+      'Mounting encrypted filesystem...',
+      'Initializing SIP VoIP softphone trunk...',
+      'Loading FastPay ISO-8583 POS gateway...',
+      'Connecting OSINT public records index...',
+      'Starting RemoteDesk session multiplexer...',
+      'Workstation ready.'
+    ];
     let i = 0; const m = b.querySelector('.msg');
-    const iv = setInterval(() => { m.textContent = msgs[i++ % msgs.length]; }, 420);
+    const iv = setInterval(() => { m.textContent = msgs[i++ % msgs.length]; }, 380);
     let done = false;
     const go = () => { if (done) return; done = true; clearInterval(iv); clearTimeout(to); b.classList.add('hidden'); SO.audio.play('boot'); login(); };
-    const to = setTimeout(go, 2800);
+    const to = setTimeout(go, 2400);
     b.onclick = go;
   }
   function login() {
     const l = $('login'); l.classList.remove('hidden');
-    l.innerHTML = '<div class="top"></div><div class="mid"><div class="brand">SCAM OS<small>Call Center Edition</small><div class="note">To begin, click your user name. Parody game: every victim, card and virus is fictional.</div></div><div class="users"><div class="user">' + SO.avatar('player', 64) + '<div><b>Scammer</b><span>Click to log on</span></div></div></div></div><div class="bot"><span>After you log on, you can scam people. (Not really!)</span><span>SCAM OS v6.6.6</span></div>';
+    l.innerHTML = '<div class="top"></div><div class="mid"><div class="brand">SCAM OS<small>Operations Workstation</small><div class="note">Select your operator profile to begin your shift. Educational simulation: every character, bank, and credential is fictional.</div></div><div class="users"><div class="user">' + SO.avatar('operator_main', 58) + '<div><b>Operator #01</b><span>Click to unlock workstation</span></div></div></div></div><div class="bot"><span>Manual simulation mode: dial numbers, key in credentials, and verify transfers manually.</span><span>SCAM OS Enterprise v4.0</span></div>';
     l.querySelector('.user').onclick = () => { l.classList.add('hidden'); desktop(); };
   }
   function desktop() {
     $('desktop').classList.remove('hidden'); $('taskbar').classList.remove('hidden');
-
     SO.os.ready = true;
     document.body.classList.toggle('noflash', !SO.save.d.settings.flash);
     $('screen').classList.toggle('crt', !!SO.save.d.settings.crt);
     drawWallpaper(); renderIcons(); renderTray();
     SO.audio.play('ding');
     if (SO.game) SO.game.start();
-    if (!clockIv) clockIv = setInterval(renderTray, 5000);
+    if (!clockIv) clockIv = setInterval(renderTray, 4000);
   }
   let clockIv = null;
 
   SO.os = {
     ready: false,
     boot, renderIcons, renderTray,
-    refreshIcons() { renderIcons(); },
+    refreshIcons() { renderIcons(); renderTray(); },
     resetIcons() { SO.save.d.iconPos = {}; SO.save.save(); renderIcons(); },
     restart(fast) {
       SO.game && SO.game.stop();
@@ -286,17 +348,18 @@
       if (!e.target.closest('#startmenu') && !e.target.closest('#startbtn')) closeStart();
       if (!e.target.closest('.dicon')) { selIcon = null; markSel(); }
     });
-    window.addEventListener('resize', () => { if (SO.os.ready) renderIcons(); });
+    window.addEventListener('resize', () => { if (SO.os.ready) { drawWallpaper(); renderIcons(); } });
     $('desktop').addEventListener('contextmenu', e => {
       if (e.target.closest('.win') || e.target.closest('.dicon')) return;
       e.preventDefault();
       SO.xpmenu && SO.xpmenu.pop([
-        { label: 'Refresh', fn: () => renderIcons() },
-        { label: 'Next Wallpaper Color', fn: () => SO.setWallpaper(((SO.save.d.settings.wallpaper || 0) + 1) % WP.length) },
-        { label: 'Reset Icon Positions', fn: () => SO.os.resetIcons() },
+        { label: 'Refresh Workspace', fn: () => renderIcons() },
+        { label: 'Cycle Wallpaper Theme', fn: () => SO.setWallpaper(((SO.save.d.settings.wallpaper || 0) + 1) % WP.length) },
+        { label: 'Reset Icon Grid', fn: () => SO.os.resetIcons() },
         { sep: true },
-        { label: 'Open Phone', fn: () => SO.openApp('phone') },
-        { label: 'Properties', fn: () => SO.openApp('settings') }
+        { label: 'Open Softphone', fn: () => SO.openApp('phone') },
+        { label: 'Open Victim Database (CRM)', fn: () => SO.openApp('crm') },
+        { label: 'Workstation Settings', fn: () => SO.openApp('settings') }
       ], e.clientX, e.clientY);
     });
     window.addEventListener('beforeunload', () => SO.save.save());

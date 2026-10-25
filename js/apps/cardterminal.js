@@ -1,194 +1,199 @@
-/* SCAM OS - Card Terminal: Interactive Merchant Virtual POS & Credit Card Processor.
-   Simulated parody app - processes fictional victim credit cards via G.chargeCard.
-   Realism model: captured cards have an ISSUER LIMIT; run a $1 test charge, stay under
-   the available limit, and expect fraud flags on big slices of it. */
+/* Card Terminal - Manual Virtual POS Payment Gateway (ISO-8583 Simulation) */
 (function () {
-  const SO = window.SO, esc = s => SO.esc(s);
-  const G = () => SO.game;
-  const D = () => SO.save.d;
+  const SO = window.SO, G = SO.game, esc = SO.esc;
 
-  function open(args) {
-    args = args || {};
-    const w = SO.wm.open({
-      id: 'cardterminal', title: 'Card Terminal - FastPay Virtual POS', icon: 'pos',
-      w: 500, h: 760, minW: 400, minH: 500
-    });
-    if (!w.fresh) return w;
+  SO.registerApp('cardterminal', {
+    title: 'Card Terminal — Virtual POS Gateway', icon: 'card', w: 780, h: 540, minW: 640, minH: 440, singleton: true,
+    open() {
+      let lastReceipt = null, unsub = null;
+      // Preserve form state across re-renders so background events don't wipe typed digits
+      const form = {
+        pan: '',
+        exp: '',
+        cvv: '',
+        name: '',
+        bank: '',
+        descriptor: 'GLOBAL TECH SERVICES',
+        amt: '250'
+      };
 
-    const body = w.body;
-    let busy = false;
+      const win = SO.wm.open({
+        id: 'cardterminal', title: this.title, icon: this.icon, w: this.w, h: this.h, minW: this.minW, minH: this.minH,
+        body: '<div class="split"></div>',
+        onClose: () => unsub && unsub()
+      });
+      const root = win.body.firstChild;
 
-    function remaining(c) {
-      const det = c && c.details || {};
-      return Math.max(0, (det.limit || 500) - (det.charged || 0));
-    }
+      function render() {
+        const d = SO.save.d;
+        const cards = (d.loot || []).filter(l => l.type === 'card' && l.details);
+        const hist = d.posHistory || [];
 
-    function render() {
-      const d = D();
-      const cards = (d.loot || []).filter(l => l.type === 'card');
-      const selCard = cards[0];   // default first-dropdown selection; amounts are never pre-filled
+        root.innerHTML =
+          /* Left Column: Manual POS Entry Form */
+          '<div class="main" style="flex:1.15;border-right:1px solid #e2e8f0">' +
+            '<div class="row" style="justify-content:space-between;margin-bottom:8px">' +
+              '<div><b style="font-size:14px">Manual Card-Not-Present (CNP) Terminal</b><div class="muted">Key in the 16-digit PAN, MM/YY expiration, and 3-digit CVV2 to authorize</div></div>' +
+              '<span class="tag g">GATEWAY ONLINE</span>' +
+            '</div>' +
 
-      body.innerHTML =
-        '<div class="col grow pad scroll" style="gap:8px;font-family:var(--px)">' +
-        // Terminal Top Banner
-        '<div style="background:#1b3b1b;color:#4af04a;border:1px solid #000;padding:6px 10px;font-size:17px;display:flex;justify-content:space-between">' +
-        '<span>MERCHANT: TotallyLegit LLC</span><span>POS ONLINE</span>' +
-        '</div>' +
+            '<div class="group" style="margin:0 0 10px 0">' +
+              '<div class="group-title">Cardholder &amp; Instrument Data</div>' +
+              '<div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:8px">' +
+                '<div><label class="muted" style="font-size:11px;font-weight:600">16-Digit Card Number (PAN)</label>' +
+                  '<input class="xp-in mono" id="pos-pan" placeholder="4XXX XXXX XXXX XXXX" maxlength="19" value="' + esc(form.pan) + '" style="font-size:13px;font-weight:700;letter-spacing:0.5px">' +
+                '</div>' +
+                '<div><label class="muted" style="font-size:11px;font-weight:600">Expiry (MM/YY)</label>' +
+                  '<input class="xp-in mono" id="pos-exp" placeholder="MM/YY" maxlength="5" value="' + esc(form.exp) + '" style="font-size:13px;font-weight:700">' +
+                '</div>' +
+                '<div><label class="muted" style="font-size:11px;font-weight:600">CVV2 / CVC</label>' +
+                  '<input class="xp-in mono" id="pos-cvv" placeholder="3 digits" maxlength="4" value="' + esc(form.cvv) + '" style="font-size:13px;font-weight:700">' +
+                '</div>' +
+              '</div>' +
 
-        // Virtual Screen Area
-        '<div id="pos-screen" style="background:#0a1a0a;color:#50fa50;border:2px solid #000;padding:10px;height:110px;overflow-y:auto;font-size:18px;line-height:21px;box-shadow:inset 2px 2px 0 #000;flex:none">' +
-        '<div style="color:#a0ffa0">READY - SELECT A CARD OR KEY ONE IN</div>' +
-        '</div>' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:8px">' +
+                '<div><label class="muted" style="font-size:11px;font-weight:600">Cardholder Name</label>' +
+                  '<input class="xp-in" id="pos-name" placeholder="Name on card" value="' + esc(form.name) + '">' +
+                '</div>' +
+                '<div><label class="muted" style="font-size:11px;font-weight:600">Statement Billing Descriptor</label>' +
+                  '<select class="xp-sel" id="pos-desc">' +
+                    ['GLOBAL TECH SERVICES', 'SECUREPC SUPPORT LLC', 'CLOUD BACKUP RENEWAL', 'OVERSEAS CONSULTING INC'].map(x =>
+                      '<option value="' + x + '" ' + (form.descriptor === x ? 'selected' : '') + '>' + x + '</option>'
+                    ).join('') +
+                  '</select>' +
+                '</div>' +
+              '</div>' +
+            '</div>' +
 
-        // Captured Cards Dropdown (no free-form entry: only cards actually captured in calls)
-        '<div class="row" style="gap:6px">' +
-        '<b style="font-size:17px;white-space:nowrap">Captured:</b>' +
-        '<select class="xp-input grow" id="ct-loot"' + (cards.length ? '' : ' disabled') + '>' +
-        (cards.length
-          ? cards.map(c => '<option value="' + c.id + '"' + (selCard && selCard.id === c.id ? ' selected' : '') + '>' + esc(c.from) + ' - ' + esc(c.details && c.details.bank || 'Bank') + ' (left $' + remaining(c).toLocaleString() + ')</option>').join('')
-          : '<option value="">No captured cards</option>') +
-        '</select>' +
-        '</div>' +
+            '<div class="group" style="margin:0 0 10px 0">' +
+              '<div class="group-title">Transaction Authorization</div>' +
+              '<div class="row" style="gap:8px;align-items:flex-end">' +
+                '<div style="flex:1">' +
+                  '<label class="muted" style="font-size:11px;font-weight:600">Charge Amount ($ USD)</label>' +
+                  '<input class="xp-in mono" id="pos-amt" type="number" min="5" max="6000" step="25" value="' + esc(form.amt) + '" style="font-size:15px;font-weight:700">' +
+                '</div>' +
+                '<button class="xp-btn" id="pos-test" style="padding:8px 12px" title="Run a $1.00 AVS/CVV pre-authorization check">Run $1.00 Pre-Auth</button>' +
+                '<button class="xp-btn green" id="pos-charge" style="padding:8px 16px">Authorize Charge</button>' +
+                '<button class="xp-btn" id="pos-clear" style="padding:8px 10px">Clear</button>' +
+              '</div>' +
+              '<div class="muted" style="margin-top:6px;font-size:11px">' +
+                'Protocol: Run a <b>$1.00 Pre-Auth</b> first to verify PAN/Expiry/CVV2 and warm up issuer fraud scoring before submitting larger charges.' +
+              '</div>' +
+            '</div>' +
 
-        (selCard
-          ? '<div class="card col" id="ct-panel" style="gap:5px;padding:8px;background:#f3f0e6"></div>' +
-            '<div class="row" style="gap:6px">' +
-            '<button class="xp-btn" id="ct-test" style="padding:6px 12px">$1 TEST CHARGE</button>' +
-            '<span style="font-size:18px">Amount:</span><span style="font-size:20px">$</span>' +
-            '<input class="xp-input" id="ct-amt" inputmode="numeric" style="width:90px" placeholder="0">' +
-            '<button class="xp-btn green grow" id="ct-charge" style="font-size:20px;padding:6px">CHARGE CARD</button>' +
-            '</div>'
-          : '<div class="panel pad" style="text-align:center" id="ct-empty">' +
-            '<div style="font-size:18px">No cards in the terminal.</div>' +
-            '<div class="muted" style="font-size:16px">Key in card details below.</div>' +
-            '</div>') +
+            /*ISO-8583 Thermal Receipt Output*/
+            '<div class="group" style="margin:0;flex:1;display:flex;flex-direction:column">' +
+              '<div class="group-title">ISO-8583 Gateway Response Slip</div>' +
+              '<div class="sunken mono" style="flex:1;padding:10px;background:#0f172a;color:#e2e8f0;font-size:11.5px;line-height:1.5">' +
+                (lastReceipt ? (
+                  '<div style="display:flex;justify-content:space-between;border-bottom:1px dashed #334155;padding-bottom:4px;margin-bottom:6px">' +
+                    '<span>MERCHANT: ' + esc(lastReceipt.descriptor) + '</span>' +
+                    '<span style="color:' + (lastReceipt.ok ? '#4ade80' : '#f87171') + ';font-weight:700">RESP CODE: ' + esc(lastReceipt.code || (lastReceipt.ok ? '00' : '05')) + '</span>' +
+                  '</div>' +
+                  '<div>PAN: ' + esc(lastReceipt.pan) + ' · HOLDER: ' + esc(lastReceipt.holder || 'N/A') + '</div>' +
+                  '<div>AMOUNT: $' + Number(lastReceipt.amt || 0).toFixed(2) + (lastReceipt.isTest ? ' (AVS/CVV PRE-AUTH)' : ' (SALE)') + '</div>' +
+                  '<div style="margin-top:4px;color:' + (lastReceipt.ok ? '#4ade80' : '#f87171') + ';font-weight:700">' + esc(lastReceipt.msg) + '</div>'
+                ) : '<div style="color:#64748b">Awaiting manual card entry and authorization...</div>') +
+              '</div>' +
+            '</div>' +
+          '</div>' +
 
-        // Manual entry - card details are keyed in by hand, nothing arrives by itself here
-        '<div class="card col" style="gap:5px;padding:8px;margin-top:2px">' +
-        '<div class="row" style="justify-content:space-between"><b>Key in card details</b><span class="tag r">RISKY</span></div>' +
-        '<div class="row" style="gap:6px;flex-wrap:wrap">' +
-        '<input class="xp-input" id="ct-mh" placeholder="Cardholder name" style="flex:1;min-width:130px" autocomplete="off">' +
-        '<input class="xp-input" id="ct-mno" placeholder="#### #### #### ####" maxlength="19" style="width:206px;font-family:monospace;letter-spacing:1px" autocomplete="off">' +
-        '</div>' +
-        '<div class="row" style="gap:6px;flex-wrap:wrap">' +
-        '<input class="xp-input" id="ct-mexp" placeholder="MM/YY" maxlength="5" style="width:80px;font-family:monospace" autocomplete="off">' +
-        '<input class="xp-input" id="ct-mcvv" placeholder="CVV" maxlength="4" style="width:64px;font-family:monospace" autocomplete="off">' +
-        '<input class="xp-input" id="ct-mbank" placeholder="Issuing bank (optional)" style="flex:1;min-width:120px" autocomplete="off">' +
-        '<button class="xp-btn green" id="ct-add" style="padding:6px 10px">ADD CARD</button>' +
-        '</div>' +
-        '</div>' +
-        '</div>';
+          /* Right Column: Reference Notes (No One-Click Auto-Charge) & Settlement Log */
+          '<div class="side" style="width:295px;display:flex;flex-direction:column;gap:10px">' +
+            '<div class="group" style="margin:0;flex:1;display:flex;flex-direction:column;overflow:hidden">' +
+              '<div class="group-title">Captured Card Notes (Read &amp; Key In)</div>' +
+              '<div style="overflow:auto;flex:1;font-size:11px;display:flex;flex-direction:column;gap:6px">' +
+                (cards.length === 0 ? '<div class="muted" style="padding:8px">No cards recorded yet. Convince a target to read out their card number, expiry, and CVV on a call.</div>' :
+                  cards.map(c => {
+                    const det = c.details;
+                    return '<div class="sunken" style="padding:7px 8px">' +
+                      '<div style="display:flex;justify-content:space-between"><b>' + esc(det.holder || c.from) + '</b><span class="tag ' + (det.tested ? 'g' : 'y') + '">' + (det.tested ? 'AVS OK' : 'UNVERIFIED') + '</span></div>' +
+                      '<div class="mono" style="margin-top:3px;font-weight:700;color:#0f172a">' + esc(det.number) + '</div>' +
+                      '<div class="mono muted">EXP: <b>' + esc(det.exp) + '</b> · CVV: <b>' + esc(det.cvv) + '</b> · Charged: $' + (det.charged || 0) + '</div>' +
+                    '</div>';
+                  }).join('')
+                ) +
+              '</div>' +
+            '</div>' +
 
-      const q = s => body.querySelector(s);
-      const scr = q('#pos-screen');
+            '<div class="group" style="margin:0;height:185px;display:flex;flex-direction:column;overflow:hidden">' +
+              '<div class="group-title">Gateway Batch Log</div>' +
+              '<div style="overflow:auto;flex:1;font-size:11px">' +
+                (hist.length === 0 ? '<div class="muted" style="padding:8px">No gateway transactions in current batch.</div>' :
+                  hist.slice(0, 12).map(h =>
+                    '<div style="display:flex;justify-content:space-between;padding:4px 2px;border-bottom:1px solid #f1f5f9">' +
+                      '<span class="mono">' + esc(h.pan) + ' ($' + h.amt + ')</span>' +
+                      '<span class="tag ' + (h.ok ? 'g' : 'r') + '">' + (h.ok ? 'AUTH 00' : 'DECL ' + esc(h.code || '05')) + '</span>' +
+                    '</div>'
+                  ).join('')
+                ) +
+              '</div>' +
+            '</div>' +
+          '</div>';
 
-      /* Manual card entry: key in the details the victim read out -> it lands in the list, then YOU charge it. */
-      q('#ct-add').onclick = () => {
-        const r = G().manualCard({
-          name: q('#ct-mh').value, number: q('#ct-mno').value,
-          exp: q('#ct-mexp').value, cvv: q('#ct-mcvv').value, bank: q('#ct-mbank').value
-        });
-        if (r.ok) {
-          scr.innerHTML = '<div style="color:#a0ffa0">CARD KEYED IN - SELECT IT ABOVE AND PROCESS IT</div>';
-          SO.audio.play('win');
+        const panIn = root.querySelector('#pos-pan');
+        const expIn = root.querySelector('#pos-exp');
+        const cvvIn = root.querySelector('#pos-cvv');
+        const nameIn = root.querySelector('#pos-name');
+        const descIn = root.querySelector('#pos-desc');
+        const amtIn = root.querySelector('#pos-amt');
+
+        if (panIn) panIn.oninput = e => {
+          const digits = e.target.value.replace(/\D/g, '').slice(0, 16);
+          form.pan = digits.replace(/(\d{4})(?=\d)/g, '$1 ');
+          e.target.value = form.pan;
+        };
+        if (expIn) expIn.oninput = e => {
+          let v = e.target.value.replace(/[^\d/]/g, '');
+          if (v.length === 2 && !v.includes('/') && form.exp.length < 2) v += '/';
+          form.exp = v.slice(0, 5);
+          e.target.value = form.exp;
+        };
+        if (cvvIn) cvvIn.oninput = e => {
+          form.cvv = e.target.value.replace(/\D/g, '').slice(0, 4);
+          e.target.value = form.cvv;
+        };
+        if (nameIn) nameIn.oninput = e => { form.name = e.target.value; };
+        if (descIn) descIn.onchange = e => { form.descriptor = e.target.value; };
+        if (amtIn) amtIn.oninput = e => { form.amt = e.target.value; };
+
+        const runGateway = isTest => {
+          const r = G.posLookupAndCharge({
+            number: form.pan,
+            exp: form.exp,
+            cvv: form.cvv,
+            name: form.name,
+            descriptor: form.descriptor,
+            amount: Number(form.amt || 0),
+            isTest
+          });
+          lastReceipt = {
+            ok: r.ok,
+            code: r.code || (r.ok ? '00' : '05'),
+            pan: '•••• ' + String(form.pan || '').replace(/\D/g, '').slice(-4),
+            holder: r.holder || form.name || 'Cardholder',
+            amt: isTest ? 1 : Number(form.amt || 0),
+            isTest,
+            descriptor: form.descriptor,
+            msg: r.msg
+          };
+          SO.audio.play(r.ok ? 'cash' : 'error');
           render();
-        } else {
-          scr.innerHTML = '<div style="color:#ff5555">ERROR: ' + esc(r.msg) + '</div>';
-          SO.audio.play('error');
-        }
-      };
+        };
 
-      if (!selCard) return;
-      paintCard(selCard);
-      if (selCard.details.tested) { const b = q('#ct-test'); if (b) { b.disabled = true; b.textContent = 'Card verified'; } }
-
-      function paintCard(c) {
-        const det = c.details || {};
-        q('#ct-panel').innerHTML =
-          '<div class="row"><b style="width:120px">Cardholder:</b><span>' + esc(c.from) + '</span></div>' +
-          '<div class="row"><b style="width:120px">Issuing bank:</b><span>' + esc(det.bank || 'Unknown') + '</span></div>' +
-          '<div class="row"><b style="width:120px">Card number:</b><span style="font-family:monospace;letter-spacing:1px">' + esc(det.number || '(masked)') + '</span></div>' +
-          '<div class="row"><b style="width:120px">Exp / CVV:</b><span style="font-family:monospace">' + esc(det.exp || '--/--') + ' / ' + esc(det.cvv || '---') + '</span></div>' +
-          '<div class="row"><b style="width:120px">Issuer limit:</b><span>$' + (det.limit || 500).toLocaleString() + '</span></div>' +
-          '<div class="row"><b style="width:120px">Charged so far:</b><span>$' + (det.charged || 0).toLocaleString() + (det.tested ? ' (incl. $1 test)' : '') + '</span></div>' +
-          '<div class="row"><b style="width:120px">Available:</b><span class="good"><b>$' + remaining(c).toLocaleString() + '</b> / flag status: <span class="' + ((det.flagged || 0) ? 'bad' : 'good') + '">' + ((det.flagged || 0) ? 'FLAGGED x' + det.flagged : 'clean') + '</span></span></div>';
-        const amt = q('#ct-amt');
-        if (amt) amt.max = String(remaining(c));   // amount is never pre-filled: the operator types it
-      }
-
-      // Loot selector change
-      q('#ct-loot').onchange = e => {
-        const c = cards.find(x => x.id === e.target.value);
-        if (!c) return;
-        selCard = c;
-        const tb = q('#ct-test');
-        if (tb) { tb.disabled = !!c.details.tested; tb.textContent = c.details.tested ? 'Card verified' : '$1 TEST CHARGE'; }
-        paintCard(c);
-        scr.innerHTML = '<div style="color:#a0ffa0">LOADED CARD FOR: ' + esc(c.from) + '</div><div style="color:#309030">AVAILABLE: $' + remaining(c).toLocaleString() + '</div>';
-      };
-
-      async function run(fn, kind) {
-        if (busy) return;
-        busy = true;
-        q('#ct-test').disabled = true; q('#ct-charge').disabled = true;
-        scr.innerHTML = '<div>CONNECTING TO MERCHANT GATEWAY...</div>';
-        SO.audio.play('click');
-        await new Promise(r => setTimeout(r, 550));
-        scr.innerHTML += '<div>TRANSMITTING EMV DATA & CVV...</div>';
-        SO.audio.play('blip');
-        await new Promise(r => setTimeout(r, 650));
-        scr.innerHTML += '<div>CONTACTING ISSUING BANK (' + esc(selCard.details.bank || 'ISSUER') + ')...</div>';
-        SO.audio.play('blip');
-        await new Promise(r => setTimeout(r, 700));
-        const r = fn();
-        if (r.ok) {
-          scr.innerHTML =
-            '<div style="color:#50ff50;font-weight:bold">' + (kind === 'test' ? '*** TEST CHARGE APPROVED ***' : '*** APPROVED ***') + '</div>' +
-            '<div style="color:#a0ffa0">' + esc(r.msg) + '</div>' +
-            '<div style="color:#80ff80">FUNDS TRANSFERRED TO DARK WALLET</div>';
-          SO.audio.play('cash');
-          SO.notify(kind === 'test' ? 'Test charge approved' : 'Payment Approved', r.msg, 'cash', { sound: 'cash' });
-        } else {
-          scr.innerHTML =
-            '<div style="color:#ff5555;font-weight:bold">*** TRANSACTION DECLINED ***</div>' +
-            '<div style="color:#ff8888">' + esc(r.msg) + '</div>';
-          SO.audio.play('error');
-          SO.notify('Transaction Declined', r.msg, 'error', { sound: 'error' });
-        }
-        if (!D().loot.some(x => x.id === selCard.id)) {
-          // card drained / closed: refresh the terminal
-          busy = false;
-          scr.innerHTML += '<div style="color:#ffaaaa">CARD CLOSED: issuer cut off the remaining limit.</div>';
+        const testBtn = root.querySelector('#pos-test');
+        if (testBtn) testBtn.onclick = () => runGateway(true);
+        const chgBtn = root.querySelector('#pos-charge');
+        if (chgBtn) chgBtn.onclick = () => runGateway(false);
+        const clrBtn = root.querySelector('#pos-clear');
+        if (clrBtn) clrBtn.onclick = () => {
+          form.pan = ''; form.exp = ''; form.cvv = ''; form.name = '';
+          lastReceipt = null;
           render();
-        } else {
-          busy = false;
-          if (q('#ct-test')) { q('#ct-test').disabled = !!selCard.details.tested; q('#ct-test').textContent = selCard.details.tested ? 'Card verified' : '$1 TEST CHARGE'; }
-          if (q('#ct-charge')) q('#ct-charge').disabled = false;
-          const opt = q('#ct-loot').querySelector('option[value="' + selCard.id + '"]');
-          if (opt) opt.textContent = selCard.from + ' - ' + (selCard.details.bank || 'Bank') + ' (left $' + remaining(selCard).toLocaleString() + ')';
-          paintCard(selCard);
-          const amt2 = q('#ct-amt'); if (amt2) amt2.max = String(remaining(selCard));
-        }
+        };
       }
-
-      q('#ct-test').onclick = () => run(() => G().chargeCard(selCard.id, 1, true), 'test');
-      q('#ct-charge').onclick = () => {
-        const amt = Math.round(Number(q('#ct-amt').value) || 0);
-        const cap = remaining(selCard);
-        if (amt > cap) {
-          scr.innerHTML = '<div style="color:#ff5555">ERROR: $' + amt.toLocaleString() + ' EXCEEDS THE AVAILABLE WINDOW ($' + cap.toLocaleString() + ').</div>';
-          return;
-        }
-        run(() => G().chargeCard(selCard.id, amt, false), 'charge');
-      };
+      unsub = G.sub(render);
+      render();
     }
-
-    render();
-    return w;
-  }
-
-  SO.registerApp({
-    id: 'cardterminal', name: 'Card Terminal', icon: 'pos',
-    desktop: true, start: true, order: 2, open
   });
 })();

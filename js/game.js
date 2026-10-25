@@ -1,9 +1,11 @@
-﻿/* SCAM OS - game logic: economy, leads, calls lifecycle, loot, heat/raids, events, mail. Parody; all fictional. */
+/* SCAM OS - Core Simulation Engine: economy, leads, calls lifecycle, manual credentials,
+   POS gateway, OTC gift exchange, RemoteDesk workstation, online banking, OSINT, heat/raids.
+   Parody simulation: everything is fictional. */
 (function () {
   const SO = window.SO;
   const D = () => SO.save.d;
   const subs = [];
-  let timers = [], generating = false, callActive = false, incTimer = null;
+  let timers = [], generating = false, callActive = false, incTimer = null, incExpireTimer = null;
 
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const rnd = (a, b) => a + Math.random() * (b - a);
@@ -12,13 +14,12 @@
   function emit() { subs.forEach(f => { try { f(); } catch (e) { console.error(e); } }); SO.refreshTray && SO.refreshTray(); }
   function persist() { SO.save.save(); emit(); }
 
-  /* One inbound call every 48-78s (48-78s base). Upgrades pull the next call in. */
   function scheduleIncoming() {
     if (incTimer) { clearTimeout(incTimer); incTimer = null; }
-    if (!SO.groq.hasKey()) return;   // no key: no AI victims, no callers
+    if (!SO.groq.hasKey()) return;
     let wait = rnd(48000, 78000);
-    if (typeof G !== 'undefined' && G.owns('u_night')) wait *= 0.5;       // night-shift crew: double inbound volume
-    if (typeof G !== 'undefined' && G.owns('u_campaign')) wait *= 0.75;  // pop-up campaign: victims call back
+    if (typeof G !== 'undefined' && G.owns('u_night')) wait *= 0.5;
+    if (typeof G !== 'undefined' && G.owns('u_campaign')) wait *= 0.75;
     incTimer = setTimeout(() => {
       incTimer = null;
       if (!callActive && !document.hidden) G.incoming();
@@ -28,6 +29,7 @@
 
   const G = SO.game = {
     fmt,
+    pendingIncoming: null,
     sub(f) { subs.push(f); return () => { const i = subs.indexOf(f); if (i >= 0) subs.splice(i, 1); }; },
     emit,
     owns: id => (D().owned[id] || 0) > 0,
@@ -38,7 +40,6 @@
     fmtCash: fmt,
     rearmIncoming: () => scheduleIncoming(),
     quietIncoming: () => !!(SO.groq.hasKey() && incTimer),
-    /* Live-call hook: lets RemoteDesk / tools make the AI victim react mid-call. */
     callEvent(text) {
       const pc = SO.activeCall;
       if (pc && pc.isActive && pc.isActive() && pc.event) { pc.event(text); return true; }
@@ -103,6 +104,7 @@
       generating = true; emit();
       try {
         const leads = await SO.groq.genLeads(n || 5, o || {});
+        leads.forEach(l => G.ensureVictimAssets(l));
         const d = D(); d.leads = (d.leads || []).concat(leads).slice(-24);
         persist(); return true;
       } catch (e) {
@@ -113,15 +115,112 @@
     isGenerating: () => generating,
     leads: () => D().leads || [],
 
+    /* ---------- Deterministic Victim Assets (Dossier, Bank, Card, Gift, Remote) ---------- */
+    dossierFor(lead) {
+      const d = D(); d.dossiers = d.dossiers || {};
+      if (d.dossiers[lead.id]) return d.dossiers[lead.id];
+      let h = 7 >>> 0; const s = String(lead.id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+      const rr = () => { h = (h * 1103515245 + 12345) >>> 0; return h / 4294967296; };
+      const gi = a => a[Math.floor(rr() * a.length)];
+      const digits = n => { let o = ''; for (let i = 0; i < n; i++) o += Math.floor(rr() * 10); return o; };
+      const streets = ['Maple Row', 'Elm Court', 'Chestnut Avenue', 'Kingsway', 'Brookside Lane', 'Hillcrest Drive', 'Orchard Close', 'Willow Bend', 'Beacon Street', 'Cedar Walk', 'Marigold Terrace', 'Harbor View Road'];
+      const pets = ['Biscuit', 'Shadow', 'Miss Whiskers', 'Duke', 'Bella', 'Sooty', 'Ginger', 'Rusty', 'Lady', 'Patch', 'Peanut', 'Bluebell'];
+      const cars = ['Ford Escort', 'Vauxhall Corsa', 'Toyota Corolla', 'Chevrolet pickup', 'Buick Regal', 'Volkswagen Passat', 'Honda Civic', 'Dodge Dart', 'Austin Metro', 'Nissan Micra'];
+      const surnames = ['Whitlock', 'Brennan', 'Kowalski', 'Delgado', 'Marsh', 'Okafor', 'Beaumont', 'Larsen', 'Patel', 'O\'Rourke', 'Nguyen', 'Ferreira'];
+      const mails = ['mail-friend.com', 'postbox.co', 'letters.net', 'quickpost.info', 'mailbox.org'];
+      const fn = String(lead.name || 'Robin').split(' ')[0], ln = String(lead.name || 'Fields').split(' ').slice(1).join(' ') || 'Fields';
+      const hsNum = 3 + Math.floor(rr() * 190);
+      const dobY = new Date().getFullYear() - (Number(lead.age) || 40);
+      const zip = String(10000 + Math.floor(rr() * 89999));
+      const dos = {
+        name: lead.name, age: lead.age, city: lead.city, zip,
+        dob: (String(1 + Math.floor(rr() * 12)).padStart(2, '0')) + '/' + (String(1 + Math.floor(rr() * 28)).padStart(2, '0')) + '/' + dobY,
+        address: hsNum + ' ' + gi(streets) + ', ' + (lead.city || 'Downtown') + ' ' + zip,
+        phone: lead.phone || ('555-' + digits(4)),
+        email: (fn + '.' + ln.replace(/\s+/g, '')).toLowerCase().replace(/[^a-z0-9.]/g, '') + '@' + gi(mails),
+        employer: /retir/i.test(String(lead.job || '')) ? 'Retired' : (String(lead.job || '') || 'Unknown workplace'),
+        ssn4: digits(4),
+        maiden: gi(surnames),
+        firstPet: gi(pets),
+        firstCar: gi(cars),
+        firstStreet: gi(streets),
+        bankUser: (String(fn).slice(0, 1).toLowerCase() + String(ln.split(' ')[0] || '').toLowerCase().replace(/[^a-z]/g, '') + digits(2)).slice(0, 14),
+        bankPass: gi(['Kettle', 'Harbor', 'Biscuit', 'Cosmos', 'Meadow', 'Whistles', 'Bramble', 'Fiddle']) + digits(3) + gi(['!', '?', '#', '$'])
+      };
+      d.dossiers[lead.id] = dos;
+      SO.save.save();
+      return dos;
+    },
+
+    ensureVictimAssets(lead) {
+      if (!lead || !lead.id) return null;
+      const d = D();
+      d.victimAssets = d.victimAssets || {};
+      const doss = G.dossierFor(lead);
+      const bank = G.bankFor(lead, true);
+      if (d.victimAssets[lead.id]) {
+        d.victimAssets[lead.id].dossier = doss;
+        d.victimAssets[lead.id].bank = bank;
+        return d.victimAssets[lead.id];
+      }
+      let h = 13 >>> 0; const s = String(lead.id); for (let i = 0; i < s.length; i++) h = (h * 37 + s.charCodeAt(i)) >>> 0;
+      const rr = () => { h = (h * 1664525 + 1013904223) >>> 0; return h / 4294967296; };
+      const digits = n => { let o = ''; for (let i = 0; i < n; i++) o += Math.floor(rr() * 10); return o; };
+
+      const cardNum = '4' + digits(3) + ' ' + digits(4) + ' ' + digits(4) + ' ' + digits(4);
+      const cardExp = '0' + (1 + Math.floor(rr() * 9)) + '/' + (28 + Math.floor(rr() * 4));
+      const cardCvv = digits(3);
+      const cardLimit = Math.round(clamp((lead.wealth || 1500) * 0.32 * (0.75 + rr() * 0.5), 220, 6000) / 10) * 10;
+
+      const brands = [
+        { n: 'Apple', k: 'APPL', rate: 0.84 }, { n: 'Google Play', k: 'GPLA', rate: 0.80 },
+        { n: 'Amazon', k: 'AMZN', rate: 0.88 }, { n: 'Target', k: 'TARG', rate: 0.82 },
+        { n: 'Steam', k: 'STEAM', rate: 0.70 }, { n: 'eBay', k: 'EBAY', rate: 0.78 }
+      ];
+      const brand = brands[Math.floor(rr() * brands.length)];
+      const face = [100, 200, 300, 500][Math.floor(rr() * 4)];
+      const giftCode = brand.k + '-' + digits(4) + '-' + digits(4) + '-' + digits(4);
+
+      const clientId = digits(3) + '-' + digits(3) + '-' + digits(3);
+      const pin = digits(4);
+      const ip = '192.168.1.' + (12 + Math.floor(rr() * 230));
+      const remoteLimit = Math.round(clamp((lead.wealth || 1500) * 0.12, 250, 2500));
+
+      const assets = {
+        leadId: lead.id,
+        dossier: doss,
+        bank,
+        card: { number: cardNum, exp: cardExp, cvv: cardCvv, holder: lead.name, bank: lead.bank, zip: doss.zip, limit: cardLimit, charged: 0, tested: false },
+        gift: { brand: brand.n, brandKey: brand.k, rate: brand.rate, code: giftCode, faceValue: face },
+        remote: { clientId, pin, ip, name: lead.name, bank: lead.bank, wealth: lead.wealth, limit: remoteLimit },
+        otpCode: digits(6),
+        wireRef: 'WIRE-' + digits(6),
+        cryptoAddr: 'bc1q' + digits(6) + 'x9k2m' + digits(4)
+      };
+      d.victimAssets[lead.id] = assets;
+      SO.save.save();
+      return assets;
+    },
+
     /* ---------- calls ---------- */
     newCall(lead, o) {
       o = o || {}; const d = D(); const ts = d.toolState || {};
-      const fx = { spoof: !!(G.owns('t_spoof') && ts.spoof !== false), voice: !!(G.owns('t_voice') && ts.voice !== false) };
+      G.ensureVictimAssets(lead);
+      const activeCover = (d.ids || []).find(x => x.id === d.activeCoverId) || null;
+      const fx = {
+        spoof: !!(G.owns('t_spoof') && ts.spoof !== false),
+        spoofNumber: ts.spoofNumber || '',
+        spoofName: ts.spoofName || '',
+        voice: !!(G.owns('t_voice') && ts.voice !== false),
+        voiceProfile: ts.voiceProfile || 'corporate',
+        activeCover
+      };
       const st = lead.stats || {};
-      const scamObj = {   // free-form call: there is no script, every ask is live
+      const bankMatch = fx.spoof && fx.spoofName && lead.bank && fx.spoofName.toLowerCase().includes(lead.bank.split(' ')[0].toLowerCase());
+      const scamObj = {
         id: o.incoming ? 'inbound' : 'open',
         name: o.incoming ? 'Inbound Support Call' : 'Cold Call',
-        asks: ['card', 'giftcard', 'otp', 'banklogin', 'remote', 'transfer', 'crypto', 'info'],   // fallback order when the AI complies without naming a payload
+        asks: ['card', 'giftcard', 'otp', 'banklogin', 'remote', 'transfer', 'crypto', 'info'],
         wealth: 0.35,
         heat: 6
       };
@@ -129,13 +228,14 @@
         lead, scam: scamObj, fx, incoming: !!o.incoming, incomingIssue: o.incomingIssue || null, turn: 0, history: [], log: [], tactics: {}, startedAt: Date.now(), outcome: null, usedActions: {},
         loots: [], compliances: [],
         m: {
-          trust: 18 + (G.owns('u_coffee') ? 5 : 0) + (fx.voice ? 8 : 0) + (o.incoming ? 20 : 0),
-          suspicion: Math.max(0, 8 - (fx.spoof ? 10 : 0) - (o.incoming ? 10 : 0)),
+          trust: 18 + (G.owns('u_coffee') ? 5 : 0) + (fx.voice ? 8 : 0) + (bankMatch ? 10 : 0) + (o.incoming ? 20 : 0),
+          suspicion: Math.max(0, 8 - (fx.spoof ? 10 : 0) - (bankMatch ? 5 : 0) - (o.incoming ? 10 : 0)),
           fear: o.incoming ? 35 : 0,
           patience: 60 + 45 * (st.patience == null ? 0.5 : st.patience)
         }
       };
     },
+
     harvestCompliance(call, compliedWith) {
       const d = D(), L = call.lead;
       const P = SO.data.PAYLOADS[compliedWith] || SO.data.PAYLOADS.info;
@@ -143,20 +243,19 @@
       call.loots = call.loots || [];
       call.compliances = call.compliances || [];
 
-      // Tool dependency: Remote access requires the Fake Remote-Access App (t_remote)
       if (compliedWith === 'remote') {
         if (!G.owns('t_remote')) {
           const failLoot = { id: 'x' + Date.now(), type: 'remote_failed', value: 0, from: L.name, data: 'Remote token: FAILED (No remote tool installed!)', details: {}, failed: true };
           call.loots.push(failLoot);
           persist();
-          SO.notify('Remote Access Failed', 'Victim agreed to connect, but you have no Remote Tool app! (Buy it in ScamMart). You got nothing.', 'warn', { sound: 'error' });
+          SO.notify('Remote Access Failed', 'Target agreed to connect, but you do not own the RemoteDesk Client license (buy in ScamMart).', 'warn', { sound: 'error' });
           return failLoot;
         } else {
           const remoteLoot = G.makeLoot('remote', value, L);
           call.loots.push(remoteLoot);
           d.loot.unshift(remoteLoot);
           persist();
-          SO.notify('Remote Connected', L.name + ' installed your support app. Open RemoteDesk (one live session).', 'cmd', { sound: 'win' });
+          SO.notify('Remote Credentials Spoken', L.name + ' read out their RemoteDesk ID & PIN on the call.', 'cmd', { sound: 'win' });
           return remoteLoot;
         }
       }
@@ -169,24 +268,23 @@
       if (call.loots.length >= 2) G.unlockAch('multi');
 
       if (compliedWith === 'card') {
-        SO.notify('Card Captured!', L.name + ' gave card details. Open Card Terminal to run it.', 'cash', { sound: 'win' });
+        SO.notify('Card Read Aloud', L.name + ' read out their card details. Key them into the Card Terminal manually.', 'cash', { sound: 'win' });
       } else if (compliedWith === 'giftcard') {
-        SO.notify('Gift Card Captured!', L.name + ' gave a code. Open CardRedeem to liquidate it.', 'cash', { sound: 'win' });
+        SO.notify('Gift Code Read Aloud', L.name + ' read out a gift card PIN. Verify & liquidate it in CardRedeem.', 'cash', { sound: 'win' });
       } else if (compliedWith === 'banklogin') {
-        SO.notify('Online Banking Captured!', L.name + ' handed over internet-banking credentials. Open the bank portal in Internet Explorer (Wallet has the address).', 'bank', { sound: 'win' });
+        SO.notify('Banking Login Read Aloud', L.name + ' shared their online banking username & password.', 'bank', { sound: 'win' });
       } else {
-        SO.notify('Payload captured!', L.name + ' provided ' + P.label, 'info', { sound: 'win' });
+        SO.notify('Information Disclosed', L.name + ' disclosed ' + P.label + ' on the call.', 'info', { sound: 'win' });
       }
       return loot;
     },
-    /* apply AI output to meters; returns {end:null|'win'|'hungup'|'busted'|'reported', loot:object} */
+
     applyTurn(call, out) {
       const m = call.m;
-      /* Slow call fatigue, scaled by difficulty: patience should never be the reason a
-         conversation dies - only the victim's genuine annoyance should. */
-      const dd = D().difficulty === 'easy' ? 0.45 : D().difficulty === 'hard' ? 1.5 : 0.85;
+      const diffSetting = (D().settings && D().settings.difficulty) || D().difficulty || 'easy';
+      const dd = diffSetting === 'easy' ? 0.45 : diffSetting === 'hard' ? 1.5 : 0.85;
       m.trust = clamp(m.trust + out.dTrust, 0, 100);
-      m.suspicion = clamp(m.suspicion + Math.min(out.dSusp, 6), 0, 100); // belt & braces: suspicion can never spike more than +6 a turn
+      m.suspicion = clamp(m.suspicion + Math.min(out.dSusp, 6), 0, 100);
       m.fear = clamp(m.fear + out.dFear, 0, 100);
       m.patience = clamp(m.patience + out.dPat - (G.owns('t_headset') ? dd * 0.55 : dd), 0, 100);
       out.tactics.forEach(t => { call.tactics[t] = (call.tactics[t] || 0) + 1; });
@@ -206,125 +304,118 @@
 
     makeLoot(type, value, lead) {
       const g = n => Array.from({ length: n }, () => Math.floor(Math.random() * 10)).join('');
-      let data = '', details = {};
+      const assets = G.ensureVictimAssets(lead);
+      const d = D();
+      let data = '', details = {}, spokenLine = '';
+
       if (type === 'card') {
-        const num = '4' + g(3) + ' ' + g(4) + ' ' + g(4) + ' ' + g(4);
-        const exp = '0' + (1 + Math.floor(Math.random() * 9)) + '/' + (27 + Math.floor(Math.random() * 4));
-        const cvv = g(3);
-        // Simulated card limit: what the issuer would actually let you pull off this card
+        const alreadyCard = (d.loot || []).some(l => l.type === 'card' && l.from === lead.name);
+        const num = (!alreadyCard && assets) ? assets.card.number : ('4' + g(3) + ' ' + g(4) + ' ' + g(4) + ' ' + g(4));
+        const exp = (!alreadyCard && assets) ? assets.card.exp : ('0' + (1 + Math.floor(Math.random() * 9)) + '/' + (28 + Math.floor(Math.random() * 4)));
+        const cvv = (!alreadyCard && assets) ? assets.card.cvv : g(3);
+        const zip = (assets && assets.dossier && assets.dossier.zip) || '10001';
         const limit = Math.round(clamp(value * rnd(0.6, 1.4), 180, 6000) / 10) * 10;
         data = 'Card: ' + num + ' exp ' + exp + ' CVV ' + cvv + ' (limit ~$' + limit + ')';
-        details = { number: num, exp, cvv, holder: lead.name, bank: lead.bank, limit, charged: 0, tested: false };
+        details = { number: num, exp, cvv, zip, holder: lead.name, bank: lead.bank, limit, charged: 0, tested: false, leadId: lead.id };
+        spokenLine = 'The card number is ' + num + ', expiration ' + exp + ', and the three-digit CVV on the back is ' + cvv + '. Billing ZIP is ' + zip + '.';
       } else if (type === 'giftcard') {
         const brands = [
           { n: 'Apple', k: 'APPL', rate: 0.84 }, { n: 'Google Play', k: 'GPLA', rate: 0.80 },
           { n: 'Amazon', k: 'AMZN', rate: 0.88 }, { n: 'Target', k: 'TARG', rate: 0.82 },
           { n: 'Steam', k: 'STEAM', rate: 0.70 }, { n: 'eBay', k: 'EBAY', rate: 0.78 }
         ];
-        const brand = brands[Math.floor(Math.random() * brands.length)];
-        const face = [100, 200, 300, 500][Math.floor(Math.random() * 4)];
-        const code = brand.k + '-' + g(4) + '-' + g(4) + '-' + g(4);
-        value = face; // resale value is face value * brand rate at liquidation time
+        const alreadyGift = (d.loot || []).some(l => l.type === 'giftcard' && l.from === lead.name);
+        let brand, face, code;
+        if (!alreadyGift && assets && assets.gift) {
+          brand = { n: assets.gift.brand, k: assets.gift.brandKey, rate: assets.gift.rate };
+          face = assets.gift.faceValue;
+          code = assets.gift.code;
+        } else {
+          brand = brands[Math.floor(Math.random() * brands.length)];
+          face = [100, 200, 300, 500][Math.floor(Math.random() * 4)];
+          code = brand.k + '-' + g(4) + '-' + g(4) + '-' + g(4);
+        }
+        value = face;
         data = brand.n + ' Gift Card: ' + code + ' ($' + face + ')';
-        details = { brand: brand.n, brandKey: brand.k, rate: brand.rate, code, faceValue: face };
+        details = { brand: brand.n, brandKey: brand.k, rate: brand.rate, code, faceValue: face, verified: false, leadId: lead.id };
+        spokenLine = 'It is a $' + face + ' ' + brand.n + ' gift card. The code on the back is ' + code + '.';
       } else if (type === 'remote') {
-        const ip = '192.168.1.' + Math.floor(10 + Math.random() * 240);
-        data = 'Remote PC: ' + lead.name + ' (' + ip + ')';
-        details = { ip, name: lead.name, bank: lead.bank, wealth: lead.wealth, limit: Math.round(clamp(lead.wealth * 0.08, 250, 2500)) };
+        const clientId = (assets && assets.remote && assets.remote.clientId) || (g(3) + '-' + g(3) + '-' + g(3));
+        const pin = (assets && assets.remote && assets.remote.pin) || g(4);
+        const ip = (assets && assets.remote && assets.remote.ip) || ('192.168.1.' + Math.floor(10 + Math.random() * 240));
+        const limit = Math.round(clamp(lead.wealth * 0.08, 250, 2500));
+        data = 'Remote PC: ' + lead.name + ' (ID ' + clientId + ' / PIN ' + pin + ')';
+        details = { clientId, pin, ip, name: lead.name, bank: lead.bank, wealth: lead.wealth, limit, leadId: lead.id };
+        spokenLine = 'I opened the RemoteDesk window—it says my Client ID is ' + clientId + ' and the session PIN is ' + pin + '.';
       } else if (type === 'otp') {
-        /* On a live step-up challenge, the only code the victim can read out is the one
-           the bank just texted them - so a harvested OTP loot mirrors that exact code. */
         const pend = G.bankPending && G.bankPending[lead.id];
-        const code = pend ? String(pend.code) : g(6);
+        const code = pend ? String(pend.code) : ((assets && assets.otpCode) || g(6));
         data = 'Read-aloud bank code: ' + code + ' (' + lead.bank + ')';
         details = { code, used: false, leadId: lead.id, bank: lead.bank, name: lead.name };
+        spokenLine = 'The six-digit verification code that just came to my phone is ' + code + '.';
       } else if (type === 'banklogin') {
-        // Internet-banking credentials the victim read out. Consistent per victim:
-        // the same login every time, and the profile's bank account is born here,
-        // with its own unique portal address so two victims at one bank never collide.
         const acc = G.bankFor(lead, true) || {};
-        const det = G.dossierFor(lead, true) || {};
+        const det = G.dossierFor(lead) || {};
         const user = det.bankUser;
         const pass = det.bankPass;
-        data = 'Bank login: ' + user + ' / ' + pass + ' (site: www.' + (acc.slug || G.slugify(lead.bank)) + '.com)';
+        const site = 'www.' + (acc.slug || G.slugify(lead.bank)) + '.com';
+        data = 'Bank login: ' + user + ' / ' + pass + ' (site: ' + site + ')';
         details = { user, pass, bank: lead.bank, slug: acc.slug || G.slugify(lead.bank), leadId: lead.id, name: lead.name };
+        spokenLine = 'I bank at ' + site + ' — my username is ' + user + ' and my password is ' + pass + '.';
       } else if (type === 'transfer') {
         const ref = 'WIRE-' + Math.floor(100000 + Math.random() * 899999);
         data = 'Wire transfer agreed: ref ' + ref;
-        details = { ref, bank: lead.bank, holder: lead.name };
+        details = { ref, bank: lead.bank, holder: lead.name, leadId: lead.id };
+        spokenLine = 'I submitted the wire transfer for $' + Math.round(value) + '. The bank confirmation reference number is ' + ref + '.';
       } else if (type === 'crypto') {
         let addr = ''; const chars = '0123456789abcdefghjkmnpqrstuvwxyz';
         for (let i = 0; i < 14; i++) addr += chars[Math.floor(Math.random() * chars.length)];
+        const fullAddr = 'bc1q' + addr;
         data = 'BTC deposit address agreed (' + addr + '...)';
-        details = { addr: 'bc1q' + addr, holder: lead.name, bank: lead.bank };
+        details = { addr: fullAddr, holder: lead.name, bank: lead.bank, leadId: lead.id };
+        spokenLine = 'I sent the Bitcoin transfer—the transaction reference is ' + fullAddr + '.';
       } else {
-        const doss = G.dossierFor(lead, false);
+        const doss = G.dossierFor(lead);
         data = 'Personal Dossier: ' + lead.name + ', ' + doss.address.split(',')[0];
         details = Object.assign({ leadId: lead.id, name: lead.name, bank: lead.bank }, doss);
+        spokenLine = 'My date of birth is ' + doss.dob + ', last four of my SSN is ' + doss.ssn4 + ', mother\'s maiden name is ' + doss.maiden + ', and my first pet was ' + doss.firstPet + '.';
       }
-      return { id: 'x' + Date.now() + Math.floor(Math.random() * 999), type, value: Math.round(value), from: lead.name, data, details, t: Date.now(), used: type === 'remote' ? false : undefined };
+      return { id: 'x' + Date.now() + Math.floor(Math.random() * 999), type, value: Math.round(value), from: lead.name, data, details, spokenLine, t: Date.now(), used: type === 'remote' ? false : undefined };
     },
 
-    /* ---------- dossier: persistent, deterministic identity data per victim ----------
-       Every 'info' payload (phished on a call or pulled with the Records-Search tool)
-       resolves to THE SAME data for that victim, so the answers stay consistent when
-       they are used on the bank's security questions later. */
-    dossierFor(lead, credentials) {
-      const d = D(); d.dossiers = d.dossiers || {};
-      if (d.dossiers[lead.id]) return d.dossiers[lead.id];
-      let h = 7 >>> 0; const s = String(lead.id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
-      const rr = () => { h = (h * 1103515245 + 12345) >>> 0; return h / 4294967296; };
-      const gi = (a) => a[Math.floor(rr() * a.length)];
-      const digits = n => { let o = ''; for (let i = 0; i < n; i++) o += Math.floor(rr() * 10); return o; };
-      const streets = ['Maple Row', 'Elm Court', 'Chestnut Avenue', 'Kingsway', 'Brookside Lane', 'Hillcrest Drive', 'Orchard Close', 'Willow Bend', 'Beacon Street', 'Cedar Walk', 'Marigold Terrace', 'Harbor View Road'];
-      const pets = ['Biscuit', 'Shadow', 'Miss Whiskers', 'Duke', 'Bella', 'Sooty', 'Ginger', 'Rusty', 'Lady', 'Patch', 'Peanut', 'Bluebell'];
-      const cars = ['Ford Escort', 'Vauxhall Corsa', 'Toyota Corolla', 'Chevrolet pickup', 'Buick Regal', 'Volkswagen Passat', 'Honda Civic', 'Dodge Dart', 'Austin Metro', 'Nissan Micra'];
-      const surnames = ['Whitlock', 'Brennan', 'Kowalski', 'Delgado', 'Marsh', 'Okafor', 'Beaumont', 'Larsen', 'Patel', 'O\'Rourke', 'Nguyen', 'Ferreira'];
-      const mails = ['mail-friend.com', 'postbox.co', 'letters.net', 'quickpost.info', 'mailbox.org'];
-      const fn = String(lead.name || 'Robin').split(' ')[0], ln = String(lead.name || 'Fields').split(' ').slice(1).join(' ') || 'Fields';
-      const hsNum = 3 + Math.floor(rr() * 190);
-      const dobY = new Date().getFullYear() - (Number(lead.age) || 40);
-      const dos = {
-        name: lead.name, age: lead.age, city: lead.city,
-        dob: (String(1 + Math.floor(rr() * 12)).padStart(2, '0')) + '/' + (String(1 + Math.floor(rr() * 28)).padStart(2, '0')) + '/' + dobY,
-        address: hsNum + ' ' + gi(streets) + ', ' + (lead.city || 'Downtown'),
-        phone: lead.phone || ('555-' + digits(4)),
-        email: (fn + '.' + ln.replace(/\s+/g, '')).toLowerCase().replace(/[^a-z0-9.]/g, '') + '@' + gi(mails),
-        employer: /retir/i.test(String(lead.job || '')) ? 'Retired' : (String(lead.job || '') || 'Unknown workplace'),
-        ssn4: digits(4),
-        maiden: gi(surnames),
-        firstPet: gi(pets),
-        firstCar: gi(cars),
-        firstStreet: gi(streets),
-        bankUser: (String(fn).slice(0, 1).toLowerCase() + String(ln.split(' ')[0] || '').toLowerCase().replace(/[^a-z]/g, '') + digits(2)).slice(0, 14),
-        bankPass: gi(['Kettle', 'Harbor', 'Biscuit', 'Cosmos', 'Meadow', 'Whistles', 'Bramble', 'Fiddle']) + digits(3) + gi(['!', '?', '#', '$'])
-      };
-      d.dossiers[lead.id] = dos;
-      SO.save.save();
-      return dos;
-    },
-
-    /* finalise a call; returns a result object for the UI */
     finishCall(call, outcome, compliedWith) {
       const d = D(), sc = call.scam, L = call.lead;
-      const loots = (call.loots || []).filter(l => !l.failed && l.value > 0);   // viable payloads only
+      const loots = (call.loots || []).filter(l => !l.failed && l.value > 0);
       if (loots.length) outcome = 'win';
       call.outcome = outcome;
       callActive = false;
       d.stats.calls++; d.callsToday++; L.called = (L.called || 0) + 1;
       Object.keys(call.tactics).forEach(t => { d.stats.tactics[t] = (d.stats.tactics[t] || 0) + call.tactics[t]; });
+      d.callHistory = d.callHistory || [];
+      d.callHistory.unshift({
+        id: 'ch_' + Date.now(),
+        leadId: L.id,
+        name: L.name,
+        phone: L.phone || '555-0000',
+        incoming: !!call.incoming,
+        outcome,
+        turns: call.turn || 0,
+        t: Date.now()
+      });
+      d.callHistory = d.callHistory.slice(0, 30);
+
       const res = { outcome, cash: 0, xp: 0, heat: 0, loot: loots[loots.length - 1] || null, loots: call.loots || [], bots: 0, note: '' };
       const heatMul = G.owns('c_vpn') ? 0.75 : 1;
       const lvl = sc.level || 1;
       const NEXT = {
-        card: "Charge the card in the Card Terminal. Run the $1 test charge first, then stay under the issuer limit.",
-        giftcard: 'Liquidate the code in CardRedeem. Payout depends on the brand resale rate.',
-        remote: 'Open RemoteDesk for your ONE session: a capped bank-transfer window, a bot install or a lock-screen scare.',
-        otp: 'Type that code into the victim\'s bank step-up page in Internet Explorer before it dies - or burn it in the Wallet.',
-        banklogin: 'Open Internet Explorer, type into their bank\'s website, and move THEIR money yourself.',
-        transfer: 'Push the wire through the Wallet. Fraud desks watch wires: expect heat.',
-        crypto: 'Sell the crypto in the Wallet. Exchanges keep identity checks: heavy heat.',
-        info: 'Sell the dossier in the Wallet. Paper trail: none.'
+        card: "Key the card number, expiry, and CVV into the Card Terminal. Run the $1 AVS/CVV check first.",
+        giftcard: 'Type the gift card code into CardRedeem to verify its balance and liquidate it.',
+        remote: 'Open RemoteDesk and type the 9-digit Client ID and 4-digit PIN to control their desktop.',
+        otp: 'Type that 6-digit code into the victim\'s bank step-up page in the Web Browser before it expires.',
+        banklogin: 'Open Web Browser, navigate to their bank website, and sign in with their username and password.',
+        transfer: 'Clear the wire reference code in the Wallet Clearing Desk.',
+        crypto: 'Clear the crypto transaction hash in the Wallet Clearing Desk.',
+        info: 'Use these personal details to pass bank security checks or review in ID Forge Registry.'
       };
       if (outcome === 'win') {
         const totalVal = loots.reduce((s, x) => s + x.value, 0);
@@ -337,25 +428,22 @@
       } else {
         d.stats.losses++;
         res.xp = 8 + Math.round(call.turn * 2);
-        if ((call.loots || []).some(l => l.failed)) res.note = 'The payload failed: process it correctly next time (remote loot needs the Remote-Access tool and one live session).';
+        if ((call.loots || []).some(l => l.failed)) res.note = 'The payload failed: make sure required tools are installed first.';
         res.heat = Math.round(sc.heat * heatMul * (outcome === 'reported' || outcome === 'busted' ? 1.4 : 0.4));
       }
       G.addXP(res.xp);
       G.addHeat(res.heat);
-      /* Burned leads move to an archive so their bank portal + dossier stay reachable after a won call. */
       if (outcome !== 'hungup') {
         d.pastLeads = d.pastLeads || {}; d.pastLeads[L.id] = L;
-        d.leads = (d.leads || []).filter(x => x.id !== L.id);   // removed from the dial list if you lost face or won
+        d.leads = (d.leads || []).filter(x => x.id !== L.id);
       }
       SO.save.save();
-      if (d.callsToday >= 8 && d.settings.autoShift !== false) setTimeout(G.endDay, 1200);      // hard shift cap for pacing
+      if (d.callsToday >= 8 && d.settings.autoShift === true) setTimeout(G.endDay, 1200);
       emit();
       return res;
     },
 
-    /* ---------- loot cash-out (quick channels only) ----------
-       card / giftcard / remote payloads must be processed in their own app
-       (Card Terminal, CardRedeem, RemoteDesk) - no instant "sell" button. */
+    /* ---------- loot cash-out & manual wire/crypto clearing ---------- */
     CHANNELS: {
       info:    { odds: 1.00, cut: 1.00, heat: 0,  label: 'Dossier sold to a data broker' },
       otp:     { odds: 0.60, cut: 0.90, heat: 5,  label: 'One-time code burned at the bank' },
@@ -366,7 +454,7 @@
       const d = D(); const i = d.loot.findIndex(l => l.id === id); if (i < 0) return null;
       const it = d.loot[i];
       const ch = G.CHANNELS[it.type];
-      if (!ch) return { ok: false, amt: 0, msg: { card: 'Cards are charged in the Card Terminal (issuer limit applies).', giftcard: 'Codes are liquidated in CardRedeem (brand rate applies).', remote: 'Remote sessions run once in RemoteDesk.' }[it.type] || 'Open its app to process this payload.' };
+      if (!ch) return { ok: false, amt: 0, msg: { card: 'Cards are charged manually in the Card Terminal.', giftcard: 'Codes are verified and liquidated manually in CardRedeem.', remote: 'Remote sessions are connected manually in RemoteDesk.' }[it.type] || 'Open its app to process this payload.' };
       d.loot.splice(i, 1);
       if (Math.random() >= ch.odds) {
         d.stats.declined = (d.stats.declined || 0) + 1;
@@ -382,9 +470,43 @@
       return { ok: true, amt, msg: ch.label };
     },
 
-    /* ---------- card processing (Card Terminal) ----------
-       The captured card has an ISSUER LIMIT: you can only pull so much off it.
-       A $1 test charge proves the card is live; large slices of the limit get flagged. */
+    /* Manual Wire / Crypto Reference Settlement (used in Wallet Clearing Desk) */
+    clearReferenceManual(refInput, routeMode) {
+      const d = D();
+      const q = String(refInput || '').trim();
+      if (q.length < 5) return { ok: false, msg: 'Enter a valid Wire Reference (WIRE-XXXXXX) or BTC TX/Address (bc1q...).' };
+      const idx = (d.loot || []).findIndex(l =>
+        (l.type === 'transfer' && l.details && String(l.details.ref || '').toUpperCase() === q.toUpperCase()) ||
+        (l.type === 'crypto' && l.details && String(l.details.addr || '').toLowerCase() === q.toLowerCase())
+      );
+      if (idx < 0) {
+        G.addHeat(2);
+        return { ok: false, msg: 'No pending incoming wire or crypto deposit matches "' + q + '". (+2 Heat)' };
+      }
+      const it = d.loot[idx];
+      d.loot.splice(idx, 1);
+      // Express Mixer lowers heat and increases clearance odds at a slightly higher fee cut
+      const mixer = routeMode === 'mixer';
+      const baseCh = G.CHANNELS[it.type] || { odds: 0.75, cut: 0.85, heat: 8, label: 'Settlement cleared' };
+      const odds = mixer ? Math.min(0.95, baseCh.odds + 0.22) : baseCh.odds;
+      const cut = mixer ? Math.max(0.70, baseCh.cut - 0.10) : baseCh.cut;
+      const heat = mixer ? Math.max(2, Math.round(baseCh.heat * 0.5)) : baseCh.heat;
+      if (Math.random() >= odds) {
+        d.stats.declined = (d.stats.declined || 0) + 1;
+        G.addHeat(3);
+        persist();
+        return { ok: false, amt: 0, msg: 'Compliance hold: Correspondent bank froze the settlement. (+3 Heat)' };
+      }
+      const amt = Math.round(it.value * cut);
+      G.addCash(amt, baseCh.label + ' [' + q + '] (' + it.from + ')');
+      d.earnedToday += amt;
+      d.stats.cashouts = (d.stats.cashouts || 0) + 1;
+      if (heat) G.addHeat(heat);
+      persist();
+      return { ok: true, amt, msg: 'Cleared ' + fmt(amt) + ' via ' + (mixer ? 'tumbler/mixer' : 'standard mule account') + ' (Heat +' + heat + ').' };
+    },
+
+    /* ---------- Card Processing (Card Terminal) ---------- */
     chargeCard(id, amount, isTest) {
       const d = D(); const it = d.loot.find(l => l.id === id);
       if (!it || it.type !== 'card' || !it.details) return { ok: false, msg: 'Card data not found.' };
@@ -396,7 +518,7 @@
         G.addCash(1, 'Test charge: card (' + it.from + ')');
         d.earnedToday += 1;
         persist();
-        return { ok: true, amt: 1, tested: true, msg: 'AUTH: $1 test charge approved. Card details are live.' };
+        return { ok: true, amt: 1, tested: true, msg: 'AUTH 00: $1.00 AVS/CVV pre-auth approved. Card is live.' };
       }
       if (!amount || amount < 5) return { ok: false, msg: 'Minimum charge is $5.' };
       const limit = det.limit || 500;
@@ -405,9 +527,8 @@
         det.flagged = (det.flagged || 0) + 1;
         G.addHeat(5 + (det.flagged > 1 ? 3 : 0));
         persist();
-        return { ok: false, msg: 'DECLINED: exceeds the available limit. Remaining: $' + Math.max(0, limit - det.charged) + '.' };
+        return { ok: false, code: '51', msg: 'DECLINED [CODE 51]: Insufficient funds / exceeds issuer limit.' };
       }
-      // Issuer fraud model: small charges sail through, big slices of the limit get flagged.
       const ratio = (det.charged + amount) / limit;
       let failP = 0.08 + Math.max(0, ratio - 0.3) * 1.1 + (det.tested ? 0 : 0.10) + Math.min(0.2, (det.flagged || 0) * 0.1);
       if (amount > 800) failP += 0.10;
@@ -416,21 +537,139 @@
         det.flagged = (det.flagged || 0) + 1;
         G.addHeat(3 + Math.round(ratio * 6));
         persist();
-        return { ok: false, msg: 'DECLINED: suspected fraud. The issuer flagged the transaction.' };
+        return { ok: false, code: '59', msg: 'DECLINED [CODE 59]: Suspected fraud. The issuer flagged the transaction.' };
       }
       det.charged += amount; det.flagged = 0;
       G.addCash(amount, 'POS charge: ' + it.from + "'s card", false);
       d.earnedToday += amount;
       d.stats.cashouts = (d.stats.cashouts || 0) + 1;
-      let leftover = limit - det.charged;
-      if (leftover <= 0) d.loot.splice(d.loot.indexOf(it), 1);   // card fully drained / reported
+      const leftover = limit - det.charged;
+      if (leftover <= 0) d.loot.splice(d.loot.indexOf(it), 1);
       else it.value = leftover;
       G.unlockAch('first_charge');
       persist();
-      return { ok: true, amt: amount, msg: 'Approved. Card payout: $' + amount + (leftover > 0 ? ' (limit).' : ' (card now drained).') };
+      return { ok: true, code: '00', amt: amount, drained: leftover <= 0, msg: 'APPROVED [CODE 00]: Charged $' + amount.toLocaleString() + (leftover > 0 ? '.' : ' (card limit exhausted).') };
     },
 
-    /* ---------- gift card liquidation (CardRedeem) ---------- */
+    manualCard(o) {
+      o = o || {};
+      const d = D();
+      const num = String(o.number || '').replace(/\D/g, '');
+      const holder = String(o.name || '').trim();
+      const bank = String(o.bank || '').trim() || 'Unknown issuer';
+      const exp = String(o.exp || '').trim().replace(/-(?=\d{2}$)/, '/');
+      const cvv = String(o.cvv || '').trim();
+      if (num.length < 15 || num.length > 16) return { ok: false, msg: 'Card number must be 15-16 digits.' };
+      if (!/^\d{2}\/\d{2}$/.test(exp) || +exp.slice(0, 2) < 1 || +exp.slice(0, 2) > 12) return { ok: false, msg: 'Expiry must be MM/YY.' };
+      if (!/^\d{3,4}$/.test(cvv)) return { ok: false, msg: 'CVV must be 3-4 digits.' };
+      const pretty = num.replace(/(\d{4})(?=\d)/g, '$1 ');
+      if (d.loot.some(l => l.type === 'card' && l.details && String(l.details.number || '').replace(/\D/g, '') === num))
+        return { ok: false, msg: 'This card number is already in your Terminal.' };
+      const limit = 250 + Math.floor(Math.random() * 24) * 100;
+      const loot = {
+        id: 'x' + Date.now() + Math.floor(Math.random() * 999), type: 'card', value: limit,
+        from: holder || 'Manual entry', data: 'Card (keyed in): ' + pretty + ' exp ' + exp + ' CVV ' + cvv,
+        details: { number: pretty, exp, cvv, holder: holder || 'Unknown holder', bank, limit, charged: 0, tested: false, keyedIn: true },
+        t: Date.now()
+      };
+      d.loot.unshift(loot);
+      persist();
+      return { ok: true, id: loot.id, msg: 'Card keyed in and ready. Run the $1 test charge first.' };
+    },
+
+    /* Manual POS Gateway Lookup & Charge (validates 16-digit PAN, MM/YY expiry, CVV, and executes charge) */
+    posLookupAndCharge(o) {
+      o = o || {};
+      const d = D();
+      const num = String(o.number || '').replace(/\D/g, '');
+      const exp = String(o.exp || '').trim().replace(/-(?=\d{2}$)/, '/');
+      const cvv = String(o.cvv || '').trim();
+      const holder = String(o.name || '').trim();
+      const bank = String(o.bank || '').trim();
+      const amount = Math.round(Number(o.amount) || 0);
+      const isTest = !!o.isTest;
+
+      if (num.length < 15 || num.length > 16) return { ok: false, code: '14', msg: 'DECLINED [CODE 14]: Invalid PAN (must be 15-16 digits).' };
+      if (!/^\d{2}\/\d{2}$/.test(exp) || +exp.slice(0, 2) < 1 || +exp.slice(0, 2) > 12) return { ok: false, code: '54', msg: 'DECLINED [CODE 54]: Invalid expiration date (use MM/YY).' };
+      if (!/^\d{3,4}$/.test(cvv)) return { ok: false, code: 'N7', msg: 'DECLINED [CODE N7]: Invalid CVV2 format (3-4 digits).' };
+
+      let target = (d.loot || []).find(l => l.type === 'card' && l.details && String(l.details.number || '').replace(/\D/g, '') === num);
+      if (target) {
+        if (target.details.exp && target.details.exp !== exp) return { ok: false, code: '54', msg: 'DECLINED [CODE 54]: Expiration date mismatch against issuer.' };
+        if (target.details.cvv && target.details.cvv !== cvv) return { ok: false, code: 'N7', msg: 'DECLINED [CODE N7]: CVV2 security code mismatch.' };
+      } else {
+        const allLeads = (d.leads || []).concat(Object.values(d.pastLeads || {}));
+        for (const L of allLeads) {
+          const va = (d.victimAssets || {})[L.id];
+          if (va && va.card && String(va.card.number || '').replace(/\D/g, '') === num) {
+            if (va.card.exp !== exp) return { ok: false, code: '54', msg: 'DECLINED [CODE 54]: Expiration date mismatch against issuer.' };
+            if (va.card.cvv !== cvv) return { ok: false, code: 'N7', msg: 'DECLINED [CODE N7]: CVV2 security code mismatch.' };
+            target = G.makeLoot('card', va.card.limit, L);
+            d.loot.unshift(target);
+            break;
+          }
+        }
+      }
+      if (!target) {
+        const mc = G.manualCard({ number: num, exp, cvv, name: holder, bank });
+        if (!mc.ok) return mc;
+        target = d.loot.find(l => l.id === mc.id);
+      }
+      const res = G.chargeCard(target.id, isTest ? 1 : amount, isTest);
+      d.posHistory = d.posHistory || [];
+      d.posHistory.unshift({
+        t: Date.now(),
+        pan: '•••• ' + num.slice(-4),
+        holder: target.details.holder || target.from || holder || 'Cardholder',
+        bank: target.details.bank || bank || 'Issuer',
+        amt: isTest ? 1 : amount,
+        isTest,
+        ok: res.ok,
+        code: res.code || (res.ok ? '00' : '05'),
+        msg: res.msg,
+        descriptor: o.descriptor || 'GLOBAL TECH SERVICES'
+      });
+      d.posHistory = d.posHistory.slice(0, 30);
+      persist();
+      return Object.assign({ cardId: target.id, holder: target.details.holder || target.from, bank: target.details.bank }, res);
+    },
+
+    /* ---------- Gift Card Verification & Liquidation (CardRedeem) ---------- */
+    verifyGiftCode(code) {
+      const d = D();
+      code = String(code || '').trim().toUpperCase();
+      if (code.length < 6) return { ok: false, msg: 'Enter a valid gift card code (e.g. APPL-XXXX-XXXX-XXXX).' };
+      let hit = d.loot.find(l => l.type === 'giftcard' && l.details && String(l.details.code || '').toUpperCase() === code);
+      if (!hit) {
+        // Also check victimAssets in case the victim read it out in text
+        const allLeads = (d.leads || []).concat(Object.values(d.pastLeads || {}));
+        for (const L of allLeads) {
+          const va = (d.victimAssets || {})[L.id];
+          if (va && va.gift && String(va.gift.code || '').toUpperCase() === code) {
+            hit = G.makeLoot('giftcard', va.gift.faceValue, L);
+            d.loot.unshift(hit);
+            break;
+          }
+        }
+      }
+      if (!hit) return { ok: false, msg: 'RETAILER API: Code invalid, already redeemed, or $0.00 balance.' };
+      hit.details.verified = true;
+      persist();
+      const det = hit.details;
+      const payout = Math.max(20, Math.round((det.faceValue || 100) * (det.rate || 0.78)));
+      return {
+        ok: true,
+        id: hit.id,
+        brand: det.brand || 'Retailer',
+        code: det.code,
+        faceValue: det.faceValue || 100,
+        rate: det.rate || 0.78,
+        payout,
+        holder: hit.from,
+        msg: 'VERIFIED: $' + (det.faceValue || 100) + ' ' + (det.brand || '') + ' voucher active. OTC Bid: $' + payout + ' (' + Math.round((det.rate || 0.78) * 100) + '%).'
+      };
+    },
+
     redeemGift(id) {
       const d = D(); const i = d.loot.findIndex(l => l.id === id); if (i < 0) return { ok: false, msg: 'Gift card not found.' };
       const it = d.loot[i];
@@ -443,24 +682,31 @@
       G.addCash(amt, 'Liquidated ' + (det.brand || 'gift') + ' code (' + it.from + ')');
       d.earnedToday += amt;
       d.stats.cashouts = (d.stats.cashouts || 0) + 1;
-      G.addHeat(2 + Math.round((face / 500) * 2));   // OTC brokers occasionally talk to police
+      G.addHeat(2 + Math.round((face / 500) * 2));
       G.unlockAch('gift_master');
       persist();
       return { ok: true, amt, msg: 'Sold at ' + Math.round(rate * 100) + '% of $' + face + ' face value.' };
     },
-    /* Manual code entry: no victim behind it, no face value, and most resold codes are already burned. */
-    /* Manual code entry: type the code in yourself. One that matches a captured
-       payload from a call liquidates that real code (brand rate); anything else
-       is a cold check with no victim behind it - mostly burned. */
+
     redeemGiftCode(code) {
       const d = D(); code = String(code || '').trim().toUpperCase();
       if (code.length < 6) return { ok: false, msg: 'Code too short to be valid.' };
       const hit = d.loot.findIndex(l => l.type === 'giftcard' && l.details && l.details.code && String(l.details.code).toUpperCase() === code);
       if (hit >= 0) return G.redeemGift(d.loot[hit].id);
-      G.addHeat(3);   // hammering a retailer balance API from one IP draws attention
+      // Also check victimAssets
+      const allLeads = (d.leads || []).concat(Object.values(d.pastLeads || {}));
+      for (const L of allLeads) {
+        const va = (d.victimAssets || {})[L.id];
+        if (va && va.gift && String(va.gift.code || '').toUpperCase() === code) {
+          const newGift = G.makeLoot('giftcard', va.gift.faceValue, L);
+          d.loot.unshift(newGift);
+          return G.redeemGift(newGift.id);
+        }
+      }
+      G.addHeat(3);
       if (Math.random() < 0.12) {
         const face = [100, 200, 300][Math.floor(Math.random() * 3)];
-        const amt = Math.round(face * 0.65);   // unknown brand: worst resale rate
+        const amt = Math.round(face * 0.65);
         G.addCash(amt, 'Liquidated unknown gift code');
         d.earnedToday += amt;
         d.stats.cashouts = (d.stats.cashouts || 0) + 1;
@@ -472,37 +718,40 @@
       return { ok: false, msg: 'Balance check failed: already redeemed, flagged, or fake. (+3 heat)' };
     },
 
-    /* ---------- manual card entry (Card Terminal) ---------- */
-    /* Key in a card the victim read out. No victim data guesswork: name/bank
-       optional; the issuer limit is unknown until used, so it is rolled. */
-    manualCard(o) {
-      o = o || {};
+    /* ---------- RemoteDesk Session Lookup & Actions ---------- */
+    connectRemoteManual(clientIdInput, pinInput) {
       const d = D();
-      const num = String(o.number || '').replace(/\D/g, '');
-      const holder = String(o.name || '').trim();
-      const bank = String(o.bank || '').trim() || 'Unknown issuer';
-      const exp = String(o.exp || '').trim().replace(/-(?=\d{2}$)/, '/');
-      if (num.length < 15 || num.length > 16) return { ok: false, msg: 'Card number must be 15-16 digits.' };
-      if (!/^\d{2}\/\d{2}$/.test(exp) || +exp.slice(0, 2) < 1 || +exp.slice(0, 2) > 12) return { ok: false, msg: 'Expiry must be MM/YY.' };
-      if (!/^\d{3,4}$/.test(String(o.cvv || '').trim())) return { ok: false, msg: 'CVV must be 3-4 digits.' };
-      const pretty = num.replace(/(\d{4})(?=\d)/g, '$1 ');
-      if (d.loot.some(l => l.type === 'card' && l.details && String(l.details.number || '').replace(/\D/g, '') === num))
-        return { ok: false, msg: 'That card is already loaded in the terminal - select it from the list.' };
-      const limit = 250 + Math.floor(Math.random() * 24) * 100;   // available window on an unknown issuer: 250..2550
-      const loot = {
-        id: 'x' + Date.now() + Math.floor(Math.random() * 999), type: 'card', value: limit,
-        from: holder || 'Manual entry', data: 'Card (keyed in): ' + pretty + ' exp ' + exp + ' CVV ' + String(o.cvv).trim(),
-        details: { number: pretty, exp, cvv: String(o.cvv).trim(), holder: holder || 'Unknown holder', bank, limit, charged: 0, tested: false },
-        t: Date.now()
-      };
-      d.loot.unshift(loot);
-      persist();
-      return { ok: true, id: loot.id, msg: 'Card keyed in and ready. Run the $1 test charge first.' };
+      if (!G.owns('t_remote')) return { ok: false, msg: 'RemoteDesk license required. Purchase Fake Remote-Access App in ScamMart.' };
+      const cid = String(clientIdInput || '').replace(/\D/g, '');
+      const pin = String(pinInput || '').replace(/\D/g, '');
+      if (cid.length < 6) return { ok: false, msg: 'Enter a valid 9-digit RemoteDesk Client ID (XXX-XXX-XXX).' };
+      if (pin.length < 4) return { ok: false, msg: 'Enter the 4-digit session PIN.' };
+
+      let loot = (d.loot || []).find(l => l.type === 'remote' && !l.used && l.details && String(l.details.clientId || '').replace(/\D/g, '') === cid);
+      if (loot) {
+        if (String(loot.details.pin || '').replace(/\D/g, '') !== pin) {
+          return { ok: false, msg: 'HANDSHAKE REJECTED: Session PIN does not match target workstation.' };
+        }
+        return { ok: true, loot, msg: 'Authenticated to ' + loot.from + ' (' + (loot.details.ip || '192.168.1.10') + ').' };
+      }
+      // Check if matches an active lead's remote asset if they complied or ran installer
+      const allLeads = (d.leads || []).concat(Object.values(d.pastLeads || {}));
+      for (const L of allLeads) {
+        const va = (d.victimAssets || {})[L.id];
+        if (va && va.remote && String(va.remote.clientId || '').replace(/\D/g, '') === cid) {
+          if (String(va.remote.pin || '').replace(/\D/g, '') !== pin) {
+            return { ok: false, msg: 'HANDSHAKE REJECTED: Session PIN does not match target workstation.' };
+          }
+          // Verify that the victim actually ran the remote tool or complied
+          const hasRemote = (d.loot || []).some(l => l.type === 'remote' && l.from === L.name);
+          if (!hasRemote) {
+            return { ok: false, msg: 'CONNECTION TIMEOUT: Target workstation is not running the RemoteDesk client yet. Convince them on a call first.' };
+          }
+        }
+      }
+      return { ok: false, msg: 'HOST UNREACHABLE: No active RemoteDesk client found with ID ' + clientIdInput + '.' };
     },
 
-    /* ---------- remote session exploit (RemoteDesk) ---------- */
-    /* One exploit per captured session: a capped bank transfer window, a bot
-       install, or a lock-screen scare. Failed transfers burn the session. */
     remoteAction(id, kind, amount) {
       const d = D(); const i = d.loot.findIndex(l => l.id === id);
       if (i < 0) return { ok: false, msg: 'Session not found.' };
@@ -513,7 +762,7 @@
       const limit = det.limit || 800;
       const ac = SO.activeCall;
       const liveCall = ac && ac.isActive && ac.isActive() ? ac.call : null;
-      const isLive = !!(liveCall && (liveCall.loots || []).some(l => l.id === id));
+      const isLive = !!(liveCall && ((liveCall.loots || []).some(l => l.id === id) || (liveCall.lead && liveCall.lead.name === it.from)));
       const react = msg => { if (isLive && ac.event) ac.event(msg); };
 
       if (kind === 'transfer') {
@@ -522,7 +771,7 @@
         if (amount > limit) return { ok: false, msg: 'The portal blocked a transfer of $' + amount + '. Available window: $' + limit + '.' };
         const ratio = amount / limit;
         if (Math.random() < 0.15 + Math.max(0, ratio - 0.4) * 1.2) {
-          d.loot.splice(i, 1);   // session burned: bank flagged it
+          d.loot.splice(i, 1);
           G.addHeat(9);
           react('Wait! A fraud alert just popped up on my online banking! It says "suspicious transfer attempt BLOCKED"! WHAT IS GOING ON?');
           persist();
@@ -533,7 +782,7 @@
         d.earnedToday += amount;
         d.stats.cashouts = (d.stats.cashouts || 0) + 1;
         G.addHeat(4 + Math.round(ratio * 7));
-        react('A transfer confirmation just appeared on my screen... wh, was that supposed to happen? Is that part of the fix?');
+        react('A transfer confirmation just appeared on my screen... was that supposed to happen? Is that part of the fix?');
         persist();
         return { ok: true, amt: amount, msg: 'Transfer approved: $' + amount + '.' };
       }
@@ -559,14 +808,45 @@
       return { ok: false, msg: 'Unknown action.' };
     },
 
-    /* ---------- online banking (fully fictional) ----------
-       Stolen bank-login payloads open real (simulated) banking websites in
-       Internet Explorer: log in by hand, answer security questions with stolen
-       dossier data, confirm transfers with a live SMS code, and dodge the fraud
-       desk. Nothing here touches a real bank. */
+    /* ---------- Phishing & SMS Gateway (Scam Tools) ---------- */
+    sendPhishGateway(opts) {
+      opts = opts || {};
+      const targetStr = String(opts.target || '').trim().toLowerCase();
+      const toolId = opts.toolId;
+      if (!targetStr) return { ok: false, msg: 'Enter the recipient\'s Phone Number (555-XXXX) or Email Address.' };
+      if (!G.owns(toolId)) return { ok: false, msg: 'Tool module not installed. Purchase it in ScamMart first.' };
+
+      const FX = {
+        t_popup: { label: 'Security Alert Link', fx: 'You just received an urgent security message with a link; when you clicked it, a loud red antivirus warning filled your computer screen saying CRITICAL INFECTION DETECTED.', tag: 'fear' },
+        t_bsod: { label: 'Kernel Diagnostic Link', fx: 'Your computer screen suddenly turned solid blue with a scary kernel stop error and froze.', tag: 'fear' },
+        t_form: { label: 'SecurePay Verification Form', fx: 'You just received an official-looking payment and refund verification link on your phone/email from the caller.', tag: 'proof' },
+        t_remote: { label: 'RemoteDesk Support Installer', fx: 'You just received a text/email with a download link for the RemoteDesk support tool; the caller wants you to open it and read the Client ID and PIN.', tag: 'remote' }
+      }[toolId];
+      if (!FX) return { ok: false, msg: 'Invalid payload template.' };
+
+      // Check if an active call matches the target phone or email or name
+      const ac = SO.activeCall;
+      if (ac && ac.isActive && ac.isActive() && ac.call && ac.call.lead) {
+        const L = ac.call.lead;
+        const doss = G.dossierFor(L);
+        const phoneClean = String(L.phone || '').replace(/\D/g, '');
+        const inputClean = targetStr.replace(/\D/g, '');
+        const matchPhone = inputClean.length >= 4 && phoneClean.endsWith(inputClean.slice(-4));
+        const matchEmail = doss && doss.email && doss.email.toLowerCase() === targetStr;
+        const matchName = L.name.toLowerCase().includes(targetStr);
+        if (matchPhone || matchEmail || matchName) {
+          if (ac.call.usedActions[toolId]) return { ok: false, msg: FX.label + ' was already transmitted to ' + L.name + ' during this call.' };
+          ac.call.usedActions[toolId] = 1;
+          ac.call.tactics[FX.tag] = (ac.call.tactics[FX.tag] || 0) + 1;
+          ac.event(FX.fx);
+          return { ok: true, live: true, msg: 'Transmitted ' + FX.label + ' to ' + L.name + ' (' + (L.phone || '') + '). Target received it on the line!' };
+        }
+      }
+      return { ok: true, live: false, msg: 'Dispatched ' + FX.label + ' to ' + opts.target + '. (Target is not currently on an active call line.)' };
+    },
+
+    /* ---------- Online Banking ---------- */
     slugify(b) { return String(b || 'mybank').toLowerCase().replace(/[^a-z0-9]+/g, '').slice(0, 18) || 'mybank'; },
-    /* Every victim's portal is its own fake domain: collisions with an existing account
-       or a captured login get a suffix (like real holding companies run several banks). */
     uniqueSlug(base) {
       const d = D(); const used = new Set();
       Object.keys(d.banks || {}).forEach(k => { const b = d.banks[k]; if (b && b.slug) used.add(b.slug); });
@@ -587,12 +867,21 @@
       if (!b && create) {
         const total = Math.max(200, Math.round(lead.wealth || 800));
         const checking = Math.round(total * 0.62), savings = total - checking;
-        b = d.banks[lead.id] = { bank: lead.bank, slug: G.uniqueSlug(G.slugify(lead.bank)), checking, savings, flags: 0, locked: false, verified: false, txns: G.seedTx(lead, checking) };
+        b = d.banks[lead.id] = {
+          bank: lead.bank,
+          slug: G.uniqueSlug(G.slugify(lead.bank)),
+          checking,
+          savings,
+          flags: 0,
+          locked: false,
+          verified: false,
+          txns: G.seedTx(lead, checking)
+        };
         SO.save.save();
       }
       return b || null;
     },
-    seedTx(lead, balance) {
+    seedTx(lead) {
       let h = 7 >>> 0; const s = String(lead.id); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
       const rr = () => { h = (h * 1103515245 + 12345) >>> 0; return h / 4294967296; };
       const gi = a => a[Math.floor(rr() * a.length)];
@@ -605,14 +894,29 @@
       }
       const inc = Math.round(Math.max(600, (lead.wealth || 800) / 26));
       out.push({ d: Date.now() - (2 + Math.floor(rr() * 5)) * 864e5, txt: 'PAYROLL DIRECT DEPOSIT', amt: inc });
-      out.sort((x, y) => y.d - x.d);
+      out.sort((x, y) => y.d - a_d(x));
+      function a_d(item) { return item.d; }
       return out;
     },
     bankLeadByLogin(user, pass) {
       const d = D();
-      const u = String(user || '').trim().toLowerCase(), p = String(pass || '').trim().toLowerCase();
+      const u = String(user || '').trim().toLowerCase(), p = String(pass || '').trim();
       if (!u || !p) return null;
-      return (d.loot || []).find(l => l.type === 'banklogin' && l.details && String(l.details.user).toLowerCase() === u && String(l.details.pass).toLowerCase() === p) || null;
+      const fromLoot = (d.loot || []).find(l => l.type === 'banklogin' && l.details && String(l.details.user).toLowerCase() === u && String(l.details.pass) === p);
+      if (fromLoot) return fromLoot;
+      // Also allow login if operator discovered the credentials in Passwords.txt on RemoteDesk or Dossier!
+      const allIds = Object.keys(d.dossiers || {});
+      for (const lid of allIds) {
+        const dos = d.dossiers[lid];
+        if (dos && String(dos.bankUser || '').toLowerCase() === u && String(dos.bankPass || '') === p) {
+          const lead = G.leadById(lid);
+          if (lead) {
+            const b = G.bankFor(lead, true);
+            return { type: 'banklogin', details: { user: dos.bankUser, pass: dos.bankPass, bank: lead.bank, slug: b && b.slug, leadId: lid, name: lead.name } };
+          }
+        }
+      }
+      return null;
     },
     bankQuestion(leadId) {
       const doss = (D().dossiers || {})[leadId];
@@ -629,14 +933,10 @@
     same(a, b) { return String(a || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '') === String(b || '').trim().toLowerCase().replace(/[^a-z0-9]/g, ''); },
     bankPending: {},
     bankQ: {},
-    /* ---- helpers called by the Internet Explorer bank portals ---- */
     leadById(id) {
       const d = D();
       return (d.leads || []).find(l => l.id === id) || (d.pastLeads || {})[id] || null;
     },
-    /* Heal legacy saves: a banklogin loot captured before the bank-portal upgrade has no
-       slug/account of its own. Give every stolen login its fictional site so it opens from
-       the Wallet button, IE Favorites and typed addresses alike. Idempotent, save-safe. */
     healBankLoots() {
       const d = D();
       (d.loot || []).forEach(l => {
@@ -653,8 +953,6 @@
         }
       });
     },
-    /* Type a login into the portal: it only opens with credentials that were
-       actually captured as a banklogin payload (or live on a dossier already). */
     bankLogin(user, pass) {
       const d = D();
       const loot = G.bankLeadByLogin(user, pass);
@@ -667,8 +965,6 @@
       if (b.locked) return { ok: false, locked: true, msg: 'ONLINE ACCESS SUSPENDED: a fraud review is underway on this profile.' };
       const doss = (d.dossiers || {})[det.leadId];
       let question = null;
-      /* Security check. Once answered right, this browser is trusted for the profile
-         (like a real "remember this device"); an existing dossier gives you the answers. */
       if (doss && !b.verified) {
         const q = G.bankQuestion(det.leadId);
         G.bankQ[det.leadId] = q;
@@ -690,16 +986,13 @@
       if (locked && lead) G.callEvent('WAIT - my online banking says access is SUSPENDED and a fraud investigation is underway! WHAT DID YOU DO TO MY ACCOUNT?!');
       return { ok: false, locked, msg: locked ? 'Three failed identity checks. This profile\'s online access is now SUSPENDED.' : 'That answer did not match the profile holder\'s records. (' + b.flags + ' of 3 failures before lockout)' };
     },
-    /* The step-up SMS only exists on the victim's phone. Intercept it live in an
-       active call; otherwise nobody hears it and the code dies with the session. */
     bankDeliverSMS(leadId, code, amt, payee) {
-      const d = D(); const lead = G.leadById(leadId); const b = (d.banks || {})[leadId];
+      const lead = G.leadById(leadId); const b = (D().banks || {})[leadId];
       if (!lead || !b) return false;
       const txt = '[The victim\'s phone buzzes - SMS from ' + b.bank + ': "You started an online transfer of $' + Number(amt).toLocaleString() + (payee ? ' to ' + String(payee).toUpperCase().slice(0, 24) : '') + '. Your verification code is ' + code + '. NEVER read this code to anyone - ' + b.bank + ' staff never ask for it. Reply STOP to cancel." ]';
       if (callActive && G.callEvent(txt)) return true;
       return false;
     },
-    /* Validate a transfer the scammer typed, then text the holder their approval code. */
     bankStartChallenge(leadId, move) {
       const d = D(); const lead = G.leadById(leadId); const b = (d.banks || {})[leadId];
       if (!b) return { ok: false, msg: 'No account data for this profile.' };
@@ -719,7 +1012,6 @@
       const live = G.bankDeliverSMS(leadId, code, amt, move.payee);
       return { ok: true, live, amt, msg: 'The bank texted a 6-digit approval code to the profile holder\'s phone.' + (live ? ' You can hear it buzz through the call.' : '') };
     },
-    /* "Send the code again" - regenerates the challenge and re-delivers the SMS. */
     bankResend(leadId) {
       const p = G.bankPending[leadId];
       if (!p) return { ok: false, msg: 'There is no pending approval check to resend.' };
@@ -739,8 +1031,6 @@
       p.tries++;
       const codeStr = String(code || '').trim();
       const otp = (d.loot || []).find(l => l.type === 'otp' && l.details && String(l.details.code) === codeStr && !l.details.used && (l.details.leadId == null || l.details.leadId === leadId));
-      /* Two ways in: (1) the code the bank texted the holder, which you can only have
-         heard read aloud on a live call; (2) an unused Wallet OTP binding to this profile. */
       if (codeStr !== String(p.code) && !otp) {
         if (p.tries >= 3) {
           b.flags++;
@@ -789,33 +1079,29 @@
       G.addHeat(5 + Math.round(Math.min(14, amt / 700)));
       G.unlockAch('wire');
       SO.save.save();
-      // A robbed victim fights back: the fraud-alert callback comes in soon.
       if (lead && (d.leads || []).some(l => l.id === lead.id) && Math.random() < 0.6 && !callActive) {
         setTimeout(() => { if (!callActive) G.incoming(lead, G.INCOMING_ISSUES.find(i => i.tag === 'transalert') || null); }, 9000 + Math.random() * 9000);
       }
       return { ok: true, amt, msg: 'Transfer approved: $' + amt.toLocaleString() + ' moved out of ' + b.bank + '.' };
     },
 
-    /* ---------- ID Forge ---------- */
+    /* ---------- ID Forge & Public Records ---------- */
     recordLookup(leadId) {
-      const d = D(); const lead = (d.leads || []).find(l => l.id === leadId);
-      if (!lead) return { ok: false, msg: 'No such lead in the current database.' };
+      const d = D(); const lead = (d.leads || []).find(l => l.id === leadId) || (d.pastLeads || {})[leadId];
+      if (!lead) return { ok: false, msg: 'No such person in the public records index.' };
       if ((d.loot || []).some(l => l.type === 'info' && l.details && l.details.leadId === leadId))
-        return { ok: false, msg: 'Records for this person are already in your Wallet.' };
-      if (d.cash < 80) return { ok: false, msg: 'A pull costs $80 and you cannot cover it.' };
-      G.spend(80, 'Records lookup: ' + lead.name);
+        return { ok: false, msg: 'Full records for this person are already unlocked in your Registry.' };
+      if (d.cash < 80) return { ok: false, msg: 'A county record pull costs $80 and you have insufficient funds.' };
+      G.spend(80, 'OSINT Records lookup: ' + lead.name);
       const loot = G.makeLoot('info', 140, lead);
       loot.data = 'County records pull: ' + lead.name;
       d.loot.unshift(loot);
       G.addHeat(4);
       persist();
-      return { ok: true, loot, msg: 'Dossier typed out and filed in the Wallet. (+4 heat: someone noticed the database pull.)' };
+      return { ok: true, loot, msg: 'Full background dossier unlocked in the Registry. (+4 Heat)' };
     },
     flashIdEvent(id) {
-      const lines = [
-        'The caller says in a bored, official voice: "This is ' + id.name + ', ' + id.title + ' with ' + id.org + '. My badge number is ' + id.badge + '. You can call our verification line at ' + id.phone + ' and reference my case file.' + (id.memo ? ' ' + id.memo : '') + '"' + ' You hear them tap a laminated card against the receiver.'
-      ];
-      return '[EVENT] ' + lines[0];
+      return '[EVENT] The caller says in an official voice: "This is ' + id.name + ', ' + id.title + ' with ' + id.org + '. My badge number is ' + id.badge + '. You can call our verification line at ' + id.phone + ' and reference my case file.' + (id.memo ? ' ' + id.memo : '') + '"';
     },
 
     /* ---------- shop ---------- */
@@ -833,7 +1119,7 @@
       else if (item.id === 'c_lawyer') G.addHeat(-40);
       else {
         d.owned[item.id] = 1;
-        if (item.id === 'u_night' || item.id === 'u_campaign') G.rearmIncoming && G.rearmIncoming();   // more inbound callers right away
+        if (item.id === 'u_night' || item.id === 'u_campaign') G.rearmIncoming && G.rearmIncoming();
       }
       SO.audio.play('cash'); persist(); if (SO.os && SO.os.renderIcons) SO.os.renderIcons();
       return null;
@@ -846,17 +1132,16 @@
       const met = got >= q;
       if (met) { G.addCash(100, 'Quota bonus (day ' + d.day + ')', true); G.addHeat(-5); } else G.addHeat(6);
       G.addMail({ from: 'Boss', subject: met ? 'Day ' + d.day + ': quota met' : 'Day ' + d.day + ': quota MISSED',
-        body: met ? 'You banked ' + fmt(got) + ' against a quota of ' + fmt(q) + '. Here is a $100 bonus. Tomorrow the bar goes up. Use "End Shift" in the clock area when the quota is met.' : 'You banked ' + fmt(got) + ' but the quota was ' + fmt(q) + '. The heat on this office went up. Do better tomorrow.' });
+        body: met ? 'You banked ' + fmt(got) + ' against a quota of ' + fmt(q) + '. Here is a $100 bonus. Tomorrow the bar goes up. Use "End Shift" in the system tray when the quota is met.' : 'You banked ' + fmt(got) + ' but the quota was ' + fmt(q) + '. The heat on this office went up. Do better tomorrow.' });
       d.day++; d.callsToday = 0; d.earnedToday = 0;
       d.heat = clamp(d.heat - 3, 0, 100);
-      // Overnight realism: one-time codes die within minutes, never last till morning.
       const otps = d.loot.filter(l => l.type === 'otp').length;
       if (otps) {
         d.loot = d.loot.filter(l => l.type !== 'otp');
         G.addMail({ from: 'Ops', subject: 'Codes expired overnight', body: otps + ' unused one-time code(s) died. Bank codes live for minutes, not days - burn them fast.' });
       }
-      G.bankPending = {};   // pending bank-step-up challenges die with the codes they belong to
-      G.bankQ = {};         // forgotten security questions: a fresh visit re-asks
+      G.bankPending = {};
+      G.bankQ = {};
       SO.notify('Shift over', (met ? 'Quota met! ' : 'Quota missed. ') + 'Day ' + d.day + ' begins. New quota: ' + fmt(G.quota()) + '.', met ? 'tip' : 'warn');
       if ((d.leads || []).length && SO.groq.hasKey()) G.refill(3 + (G.owns('u_office') ? 2 : 0));
       persist();
@@ -870,16 +1155,16 @@
       SO.audio.play('alarm');
       const box = document.createElement('div');
       box.id = 'raid'; box.className = 'dim';
-      box.innerHTML = '<div class="dlg" style="min-width:420px;border-color:#c00"><div class="tb" style="background:#c00"><span class="tb-title">POLICE RAID!</span></div><div class="dbody" style="flex-direction:column;align-items:center;text-align:center"><img src="' + SO.icon('police') + '" style="width:64px;height:64px"><div>The cops are at the door! SHRED THE EVIDENCE: click the button <b>' + need + '</b> times in <b>' + secs + '</b> seconds!</div><div class="meter" style="width:100%"><div class="bar"><i id="raidbar" style="--c:#e63232"></i></div></div><div id="raidt" style="font-size:24px">' + secs + 's</div><button class="xp-btn red" id="raidbtn" style="font-size:26px;padding:10px 30px">SHRED!</button></div></div>';
+      box.innerHTML = '<div class="dlg" style="min-width:420px;border-color:#dc2626"><div class="tb" style="background:#dc2626"><span class="tb-title">FEDERAL RAID IN PROGRESS!</span></div><div class="dbody" style="flex-direction:column;align-items:center;text-align:center"><img src="' + SO.icon('police') + '" style="width:64px;height:64px"><div>Federal agents are breaching the floor! PURGE ENCRYPTED DRIVES: click the button <b>' + need + '</b> times in <b>' + secs + '</b> seconds!</div><div class="meter" style="width:100%"><div class="bar"><i id="raidbar" style="--c:#ef4444"></i></div></div><div id="raidt" class="mono" style="font-size:22px;font-weight:700">' + secs + 's</div><button class="xp-btn red" id="raidbtn" style="font-size:18px;padding:10px 30px">SHRED &amp; WIPE!</button></div></div>';
       document.getElementById('overlay').appendChild(box);
       let clicks = 0, left = secs, over = false;
       const end = ok => {
         if (over) return; over = true; clearInterval(iv); box.remove();
-        if (ok) { d.heat = 40; G.unlockAch('survivor'); SO.notify('Close call!', 'You shredded everything. Heat dropped to 40.', 'tip', { sound: 'win' }); }
+        if (ok) { d.heat = 40; G.unlockAch('survivor'); SO.notify('Evidence Purged', 'You wiped the drives before breach. Heat dropped to 40%.', 'tip', { sound: 'win' }); }
         else {
           const lost = Math.round(d.cash * 0.6); d.cash -= lost; d.loot = []; d.bots = 0; d.heat = 50;
-          d.ledger.unshift({ t: Date.now(), text: 'Police seized assets', amt: -lost });
-          SO.msgbox({ title: 'BUSTED', icon: 'error', text: 'The police seized ' + fmt(lost) + ', your loot and your bots. You got off with a warning (this is a game!). Heat reset to 50.' });
+          d.ledger.unshift({ t: Date.now(), text: 'Federal asset seizure', amt: -lost });
+          SO.msgbox({ title: 'RAID SEIZURE', icon: 'error', text: 'Agents seized ' + fmt(lost) + ', your unlaundered payloads, and botnet nodes. Heat reset to 50%.' });
         }
         persist();
       };
@@ -887,27 +1172,28 @@
       box.querySelector('#raidbtn').onclick = () => { clicks++; SO.audio.play('blip'); box.querySelector('#raidbar').style.width = Math.min(100, clicks / need * 100) + '%'; if (clicks >= need) end(true); };
     },
 
-    /* ---------- passive systems & random events ---------- */
+    /* ---------- passive systems & realistic operational events ---------- */
     botTick() {
       const d = D(); if (d.bots <= 0) return;
       d.cash += d.bots * 3; d.totalEarned += d.bots * 3; d.earnedToday += d.bots * 3;
       const p = G.owns('u_botnet') ? 0.025 : 0.05; let dead = 0;
       for (let i = 0; i < d.bots; i++) if (Math.random() < p) dead++;
-      if (dead) { d.bots -= dead; SO.notify('Antivirus cleaned a victim PC', dead + ' of your bots were removed. ' + d.bots + ' left.', 'shield'); }
+      if (dead) { d.bots -= dead; SO.notify('Endpoint AV Quarantine', dead + ' bot node(s) were cleaned by target antivirus. ' + d.bots + ' active.', 'shield'); }
       persist();
     },
     randomEvent() {
       if (callActive || document.getElementById('raid')) return;
       const d = D(); const r = Math.random();
-      if (G.owns('u_campaign') && r < 0.35 && SO.groq.hasKey() && (d.leads || []).length) {
+      if (G.owns('u_campaign') && r < 0.45 && SO.groq.hasKey() && (d.leads || []).length) {
         const lead = d.leads[Math.floor(Math.random() * d.leads.length)];
         G.incoming(lead); return;
       }
-      if (r < 0.55) { G.addHeat(8); SO.notify('Knock knock', 'A neighbor reported strange yelling. Heat +8.', 'police'); }
-      else { SO.bsod('IRQL_NOT_LESS_OR_EQUAL (random prank)', 3500); }
+      if (d.heat >= 55 && r < 0.5) {
+        G.addHeat(4);
+        SO.notify('Telecom Carrier Audit', 'Unusual outbound SIP call volume flagged by carrier. Heat +4%.', 'police');
+      }
     },
-    /* Inbound caller scenarios: the victim's story (why they dialed). What you
-       extract from them is up to you - no scripted asks. */
+
     INCOMING_ISSUES: [
       { tag: 'virus', title: 'Virus Siren Pop-up', prompt: 'You are calling technical support in distress. A loud red siren pop-up locked your computer screen saying CRITICAL SECURITY WARNING: 5 VIRUSES DETECTED. You need someone to clean your computer immediately.' },
       { tag: 'charge', title: 'Unauthorized $499 Charge', prompt: 'You are calling customer service about an unexpected email invoice stating your card was billed $499.00 for an antivirus renewal you never authorized. You want an immediate refund.' },
@@ -921,6 +1207,8 @@
       { tag: 'prize', title: 'Sweepstake Winner Letter', prompt: 'You received an official-looking letter saying you won a $85,000 sweepstake draw. To release the money you must pay a "$321 processing fee" by a method the letter says is the fastest. You are excited and hopeful, calling the claims line on the letter.' },
       { tag: 'transalert', title: 'Fraud Alert About YOUR Transfer', prompt: 'You just woke up to texts from your bank: an online transfer request you never made is pending, and the fraud team wants the account holder to confirm by phone. You are angry and scared. You are certain you did not authorize anything.' }
     ],
+
+    /* Inbound call: rings the line and alerts the tray/Softphone badge WITHOUT force-opening windows! */
     incoming(lead, issue) {
       if (callActive) return;
       if (D().settings.inbound === false) return;
@@ -943,23 +1231,49 @@
         stats: { tech: 0.15, gullibility: 0.85, fearfulness: 0.8, authorityRespect: 0.85, greed: 0.2, loneliness: 0.7, patience: 0.6 },
         wealth: 3500,
         voice: 'autumn',
-        voiceRate: 0.98
+        voiceRate: 0.98,
+        phone: '555-3819'
       });
-
+      G.ensureVictimAssets(lead);
+      G.pendingIncoming = { lead, issue, t: Date.now() };
       SO.audio.startRing();
-      setTimeout(() => { SO.audio.stopRing(); }, 16000);
-      /* No notifications for calls - the Phone app's own incoming-call card is the only UI. */
-      const w = SO.openApp('phone', { incoming: lead, issue });
+      if (incExpireTimer) clearTimeout(incExpireTimer);
+      incExpireTimer = setTimeout(() => {
+        SO.audio.stopRing();
+        if (G.pendingIncoming && G.pendingIncoming.lead.id === lead.id) {
+          G.pendingIncoming = null;
+          SO.os && SO.os.ready && SO.os.refreshIcons();
+          emit();
+        }
+      }, 22000);
+
+      SO.os && SO.os.ready && SO.os.refreshIcons();
+      emit();
+      // If Softphone window is already open, update its incoming line bar
+      const w = SO.wm && SO.wm.get && SO.wm.get('phone');
       if (w && w.api && w.api.showIncomingRing) w.api.showIncomingRing(lead, issue);
+    },
+
+    clearIncoming() {
+      G.pendingIncoming = null;
+      if (incExpireTimer) { clearTimeout(incExpireTimer); incExpireTimer = null; }
+      SO.audio.stopRing();
+      SO.os && SO.os.ready && SO.os.refreshIcons();
+      emit();
     },
 
     /* ---------- lifecycle ---------- */
     start() {
       G.stop(); const d = D();
+      (d.leads || []).forEach(l => G.ensureVictimAssets(l));
       if (!d.tutorialDone) {
         d.tutorialDone = true;
-        G.addMail({ from: 'Boss', subject: 'Welcome to TotallyLegit Solutions', body:
-          'Rookie,\n\nWelcome to the call center. Open Settings to set your Groq key, then open Phone to make calls or answer incoming callers.\n\n- The Boss' });
+        G.addMail({ from: 'Operations Director', subject: 'Workstation Onboarding & Manual Protocols', body:
+          'Operator,\n\nWelcome to the floor. Every system on this workstation operates manually:\n\n' +
+          '1. Set your Groq API key in Settings > AI.\n' +
+          '2. Open Victim Database (CRM) to generate target leads and view their phone numbers.\n' +
+          '3. Open Softphone, configure Caller-ID Spoofing if owned, and manually dial the target\'s phone number.\n' +
+          '4. Record any card numbers, gift codes, RemoteDesk IDs, or bank credentials the target speaks to you, then key them manually into Card Terminal, CardRedeem, RemoteDesk, or the Web Browser.\n\n- Operations Director' });
       }
       timers.push(setInterval(G.botTick, 20000));
       timers.push(setInterval(() => { G.randomEvent(); }, 95000));
@@ -967,8 +1281,13 @@
       if (!SO.groq.hasKey()) setTimeout(() => SO.notify('Set up AI Key', 'Open Settings > AI and paste your Groq API key to play.', 'warn', { timeout: 9000, onClick: () => SO.openApp('settings') }), 1500);
       emit();
     },
-    stop() { timers.forEach(clearInterval); timers = []; if (incTimer) { clearTimeout(incTimer); incTimer = null; } callActive = false; SO.audio.stopRing(); SO.voice && SO.voice.stop(); }
+    stop() {
+      timers.forEach(clearInterval); timers = [];
+      if (incTimer) { clearTimeout(incTimer); incTimer = null; }
+      if (incExpireTimer) { clearTimeout(incExpireTimer); incExpireTimer = null; }
+      G.pendingIncoming = null;
+      callActive = false; SO.audio.stopRing(); SO.voice && SO.voice.stop();
+    }
   };
-  /* Run the legacy-loot heal once at load so every captured bank login has its portal site. */
-  try { if (SO.save && SO.save.d && SO.save.d.loot) G.healBankLoots(); } catch (e) { /* heals lazily from Wallet/IE instead */ }
+  try { if (SO.save && SO.save.d && SO.save.d.loot) G.healBankLoots(); } catch (e) {}
 })();

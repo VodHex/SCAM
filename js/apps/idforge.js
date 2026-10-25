@@ -1,219 +1,218 @@
-/* SCAM OS - ID Forge & Registry.
-   1) Forge: builds entirely fictional identity badges ("authority" covers) the scammer
-      can flash during a live call (the AI reacts) or print to the fake Desktop.
-   2) Registry: lists Personal-info payloads (stolen dossiers) with every data field
-      exposed - maiden names, first pets, online-banking credentials - so the bank's
-      security questions can be beaten, plus a paid records-lookup for leads you have not
-      phished yet. Every person, badge and phone number here is generated fiction. */
+/* ID Forge & OSINT Registry - Manual Credential Press & Public Records Search */
 (function () {
-  const SO = window.SO, esc = s => SO.esc(s);
-  const D = () => SO.save.d;
-  const G = SO.game;
-  const digits = n => { let o = ''; for (let i = 0; i < n; i++) o += Math.floor(Math.random() * 10); return o; };
-  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const SO = window.SO, G = SO.game, esc = SO.esc;
 
-  const FIRST = ['Chadwick', 'Brad', 'Randall', 'Dominic', 'Alvin', 'Terrence', 'Lenny', 'Maurice', 'Stan', 'Gordon', 'Vernon', 'Darryl', 'Wilbur', 'Hank', 'Merle', 'Ambrose', 'Delmar', 'Spencer', 'Colton', 'Roland'];
-  const LAST = ['Blobberdeck', 'Truckle', 'Farnsworth', 'Grimsby', 'Quimby', 'Latzke', 'Bunsen', 'Huddle', 'Spackle', 'Rudge', 'McSporran', 'Vandersnoot', 'Plimpton', 'Dobbins', 'Featherstone', 'Crumb', 'Hackett', 'Dooley', 'Bricker', 'Mudd'];
-
-  const ARCH = [
-    { t: 'Bank Fraud Officer', orgs: ['FrontLine National - Fraud Desk', 'Meridian Trust Security Office', 'Crestbank Financial Protection Div.'], memos: ['Following up on the complaint you filed earlier today.', 'There is a pending reversal on your account; the file has to be closed today.'] },
-    { t: 'Medicare Inspector', orgs: ['National Health Audit Unit', 'Federal Medical Billing Oversight'], memos: ['We are auditing your new card in the mail - confirm you received it.', 'Your current plan shows an unused benefit that expires this week.'] },
-    { t: 'Federal Agent', orgs: ['Federal Bureau of Consumer Affairs', 'Interstate Compliance Bureau (fictional)'], memos: ['A parcel of undeclared goods was seized carrying your name.', 'The warrant on your file is awaiting one final signature.'] },
-    { t: 'Internal Revenue Officer', orgs: ['Fictional Revenue Service - Collections', 'Bureau of Tax Compliance'], memos: ['The balance on file grows every day it is unpaid.', 'Legal paperwork is scheduled for delivery to your home address.'] },
-    { t: 'Tech Support Engineer', orgs: ['Certified Windows Repair Network', 'GlobalPC Support Center (fictional)'], memos: ['The error logs from your machine just got worse.', 'Our engineers need one clearance step before the remote fix.'] },
-    { t: 'Delivery Courier Manager', orgs: ['UltrPost Regional Depot', 'ParcelLine Customs Office'], memos: ['Your parcel is on the scanner as "held - ID required".', 'The driver needs one verbal clearance before re-attempting delivery.'] },
-    { t: 'Utility Field Agent', orgs: ['City Power & Water - Disconnection Unit', 'Regional Utilities Enforcement'], memos: ['The meter team is at your street right now.', 'The cutoff order prints at the end of the day.'] },
-    { t: 'Police Detective', orgs: ['County Fraud Squad (fictional)', 'Metropolitan Cybercrime Unit'], memos: ['I spoke to your bank this morning; the trail is warm.', 'You are listed as a witness, not a suspect - so far.'] },
-    { t: 'ROI Investment Manager', orgs: ['GrandView Capital Partners', 'Sterling Yield Group'], memos: ['The allocation window closes before the market opens Monday.', 'Tier-one accounts only; I am bending a rule to call you.'] },
-    { t: 'Church Charity Worker', orgs: ['St. Bede Benevolent Fund', 'Good Samaritan Relief Drive'], memos: ['The matching gift runs out at midnight tonight.', 'The bishop personally signed your case file.'] }
+  const SEALS = [
+    { id: 'fed', label: 'Federal Gold Seal', col: '#8a6816', bg: '#f6edd3' },
+    { id: 'bank', label: 'Bank Fraud Bureau', col: '#0f2747', bg: '#dde7f3' },
+    { id: 'tech', label: 'Enterprise Support Shield', col: '#1f5a43', bg: '#daf0e5' },
+    { id: 'util', label: 'Municipal Inspector', col: '#5b224b', bg: '#f0ddf0' },
+    { id: 'court', label: 'County Clerk Warrant', col: '#6d1c1c', bg: '#f5dada' }
   ];
-  const BADGE = ['FD-' + digits(4), 'BC-' + digits(5), 'INS-' + digits(3) + String.fromCharCode(65 + Math.floor(Math.random() * 26)), 'EPS' + digits(4)];
 
-  function forgeObject() {
-    const a = pick(ARCH);
-    return {
-      id: 'i' + Date.now() + Math.floor(Math.random() * 999),
-      arch: a.t,
-      name: pick(FIRST) + ' ' + pick(LAST),
-      title: (Math.random() < 0.5 ? 'Senior ' : '') + a.t,
-      org: pick(a.orgs),
-      badge: pick(BADGE),
-      phone: '555-' + digits(4),
-      memo: pick(a.memos),
-      verified: [true, false][Math.floor(Math.random() * 2)],
-      issued: new Date().toLocaleDateString()
-    };
-  }
-  function cardText(o) {
-    return 'FICTIONAL ID BADGE (SCAM OS parody - this person does not exist)\r\n' +
-      '='.repeat(56) + '\r\n' +
-      '  NAME:      ' + o.name + '\r\n' +
-      '  TITLE:     ' + o.title + '\r\n' +
-      '  AGENCY:    ' + o.org + '\r\n' +
-      '  BADGE #:   ' + o.badge + '\r\n' +
-      '  VERIF TEL: ' + o.phone + '\r\n' +
-      '  COVERLINE: ' + (o.memo || '') + '\r\n' +
-      '  ISSUED:    ' + o.issued + '\r\n' + '='.repeat(56) + '\r\n';
-  }
-  function liveCall() { const ac = SO.activeCall; return ac && ac.isActive && ac.isActive() ? ac : null; }
-  function flash(o) {
-    const ac = liveCall();
-    if (!ac) { SO.notify('No one is on the line', 'A badge only counts while the victim can hear you say it. Open a live call first.', 'info'); return false; }
-    try { ac.call.tactics.authority = (ac.call.tactics.authority || 0) + 1; } catch (e) { }
-    ac.event(G.flashIdEvent(o));
-    SO.save.save();
-    return true;
-  }
-  function print(o) {
-    const fn = 'ID_' + String(o.name || 'card').replace(/[^A-Za-z0-9]+/g, '_').slice(0, 24) + '.txt';
-    const ok = SO.fs.write('C:\\Documents and Settings\\Scammer\\Desktop\\' + fn, cardText(o));
-    SO.notify(ok ? 'Badge printed' : 'Print failed', ok ? fn + ' is on the (fake) Desktop. Notepad can open it.' : 'The fake filesystem refused the write.', ok ? 'tip' : 'error', { sound: ok ? 'ding' : 'error' });
-  }
-
-  function open() {
-    let tab = 'Forge', draft = null;
-    let unsubG = null, unsubFs = null;
-    const w = SO.wm.open({ id: 'idforge', title: 'ID Forge & Registry', icon: 'id', w: 660, h: 540, minW: 500, minH: 420, onClose: () => { if (unsubG) unsubG(); if (unsubFs) unsubFs(); } });
-    if (!w.fresh) return w;
-    w.body.innerHTML = '<div class="tabs" id="if-tabs"></div><div class="scroll grow pad" id="if-b"></div>';
-
-    function render() {
-      const tabs = w.body.querySelector('#if-tabs'); tabs.innerHTML = '';
-      [['Forge', 'Forge'], ['Registry', 'Registry']].forEach(([k, t]) => {
-        const e = document.createElement('div'); e.className = 'tab' + (k === tab ? ' on' : '');
-        e.textContent = t; e.onclick = () => { tab = k; render(); }; tabs.appendChild(e);
-      });
-      tab === 'Forge' ? renderForge() : renderRegistry();
-    }
-
-    /* ---------------- Forge tab ---------------- */
-    function renderForge() {
-      const b = w.body.querySelector('#if-b');
-      if (!draft) draft = forgeObject();
-      const onCall = !!liveCall();
-      const field = (k, label, ml) =>
-        '<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px"><b style="width:92px;flex:none;font-size:17px">' + label + '</b>' +
-        '<input class="xp-input grow" data-f="' + k + '" maxlength="' + (ml || 40) + '" autocomplete="off" spellcheck="false" value="' + esc(draft[k] || '') + '"></div>';
-      b.innerHTML =
-        '<div class="card" style="padding:10px">' +
-        '<div style="display:flex;gap:12px;align-items:flex-start">' +
-        '<div style="width:120px;flex:none;text-align:center">' + SO.avatar(draft.id, 84, { gender: draft.arch.match(/Officer|Inspector|Detective|Agent/) ? 'male' : 'female' }) + '<div class="muted" style="font-size:15px;margin-top:2px">laminated art</div></div>' +
-        '<div class="grow" style="min-width:0">' +
-        '<div class="col" style="gap:3px">' +
-        field('name', 'Name:', 34) +
-        field('title', 'Title:', 40) +
-        field('org', ' Agency:', 44) +
-        field('badge', 'Badge #:', 14) +
-        '<div style="display:flex;gap:8px;margin-bottom:4px"><b style="width:92px;flex:none;font-size:17px">Verif tel:</b><input class="xp-input" data-f="phone" maxlength="10" style="width:120px" autocomplete="off" value="' + esc(draft.phone || '') + '"><span class="muted" style="font-size:15px;align-self:center">(555-: every number here is fictional)</span></div>' +
-        '<div style="display:flex;gap:8px"><b style="width:92px;flex:none;font-size:17px">Coverline:</b><input class="xp-input grow" data-f="memo" maxlength="80" autocomplete="off" value="' + esc(draft.memo || '') + '"></div>' +
-        '</div></div></div>' +
-        '<div class="muted" style="font-size:15px;margin-top:4px">Cover story &ldquo;' + esc(draft.arch) + '&rdquo; &bull; badge appears in the victim\'s ears, not eyes: it is spoken aloud.</div>' +
+  function badgeCard(c) {
+    const s = SEALS.find(x => x.id === c.seal) || SEALS[0];
+    return '<div style="border:2px solid ' + s.col + ';background:linear-gradient(135deg,' + s.bg + ',#fff);padding:10px 12px;border-radius:8px;box-shadow:0 2px 6px rgba(15,23,42,0.08)">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid ' + s.col + ';padding-bottom:4px;margin-bottom:6px">' +
+        '<div style="font-weight:800;color:' + s.col + ';font-size:12px;letter-spacing:.5px;text-transform:uppercase">★ ' + esc(c.org || 'OFFICIAL') + '</div>' +
+        '<span class="mono" style="font-size:10px;background:' + s.col + ';color:#fff;padding:1px 6px;border-radius:4px">ID #' + esc(c.badge || '0000') + '</span>' +
+      '</div>' +
+      '<div style="display:flex;gap:10px;align-items:center">' +
+        '<div style="width:44px;height:52px;background:' + s.col + ';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;border-radius:6px">' + esc(String(c.name || '?').slice(0, 1).toUpperCase()) + '</div>' +
+        '<div style="flex:1;font-size:11px;line-height:1.4">' +
+          '<div style="font-size:13px;font-weight:800;color:#0f172a">' + esc(c.name || 'Unnamed') + '</div>' +
+          '<div style="color:' + s.col + ';font-weight:700">' + esc(c.title || 'Representative') + '</div>' +
+          '<div class="mono muted">Verify Line: ' + esc(c.phone || '800-555-0100') + '</div>' +
+          (c.memo ? '<div class="muted" style="font-style:italic">"' + esc(c.memo) + '"</div>' : '') +
         '</div>' +
-        '<div class="row" style="gap:6px;flex-wrap:wrap;margin-top:8px">' +
-        '<button class="xp-btn" id="if-new">Forge a new cover</button>' +
-        '<button class="xp-btn green" id="if-save">Commit to album</button>' +
-        '<button class="xp-btn' + (onCall ? ' green' : '') + '" id="if-flash"' + (onCall ? '' : ' title="Open a live call first"') + '>Flash on live call</button>' +
-        '<button class="xp-btn" id="if-print">Print to Desktop file</button>' +
-        '</div>' +
-        '<div class="panel pad muted" style="margin-top:8px;font-size:16px">Nothing here is real: names, badges, agencies and 555-numbers are generated fiction. Real officers never work this way over the phone.</div>';
+      '</div></div>';
+  }
 
-      b.querySelectorAll('input[data-f]').forEach(i => i.oninput = () => { draft[i.dataset.f] = i.value; });
-      b.querySelector('#if-new').onclick = () => { draft = forgeObject(); SO.audio.play('click'); render(); };
-      b.querySelector('#if-save').onclick = () => {
-        const d = D(); d.ids = d.ids || [];
-        d.ids.unshift(Object.assign({}, draft)); d.ids = d.ids.slice(0, 30);
-        SO.save.save(); SO.audio.play('win');
-        SO.notify('Cover committed', draft.title + ' \u201c' + draft.name + '\u201d joined the album (' + d.ids.length + ').', 'id', { sound: 'win' });
-        render();
+  SO.registerApp('idforge', {
+    title: 'ID Forge & OSINT Public Records', icon: 'id', w: 780, h: 550, minW: 620, minH: 430, singleton: true,
+    open() {
+      let tab = 'press', searchQ = '', banner = null, unsub = null;
+      const draft = {
+        name: 'Agent R. Vance',
+        title: 'Senior Fraud Investigator',
+        org: 'Federal Banking Oversight Division',
+        badge: 'FB-' + Math.floor(1000 + Math.random() * 8999),
+        phone: '800-555-0142',
+        memo: 'Authorized to verify wire holds',
+        seal: 'fed'
       };
-      b.querySelector('#if-flash').onclick = () => { if (flash(draft)) { SO.audio.play('click'); b.querySelector('#if-flash').textContent = 'Flashed!'; setTimeout(render, 900); } };
-      b.querySelector('#if-print').onclick = () => print(draft);
-    }
 
-    /* ---------------- Registry tab ---------------- */
-    function renderRegistry() {
-      const b = w.body.querySelector('#if-b');
-      const d = D();
-      const ids = d.ids || [];
-      /* stolen dossiers: info payloads carrying the full per-victim data set */
-      const seen = {};
-      const doss = [];
-      (d.loot || []).forEach(l => {
-        if (l.type === 'info' && l.details) seen[l.details.leadId] = l;
+      const win = SO.wm.open({
+        id: 'idforge', title: this.title, icon: this.icon, w: this.w, h: this.h, minW: this.minW, minH: this.minH,
+        body: '<div class="main"></div>',
+        onClose: () => unsub && unsub()
       });
-      Object.keys(seen).forEach(leadId => doss.push(seen[leadId]));
-      const pend = (d.leads || []).filter(l => !seen[l.id]).map(l => ({ lead: l }));
+      const root = win.body.firstChild;
 
-      let html = '<h3 class="sec" style="margin:2px 0">Cover identity album (' + ids.length + ')</h3>';
-      html += ids.length
-        ? '<table class="grid"><thead><tr><th>Person</th><th>Title / agency</th><th>Badge</th><th>Issued</th><th nowrap>Actions</th></tr></thead><tbody>' +
-          ids.map(i => '<tr>' +
-            '<td><b>' + esc(i.name) + '</b></td>' +
-            '<td>' + esc(i.title) + '<br><span class="muted" style="font-size:15px">' + esc(i.org) + '</span></td>' +
-            '<td style="font-family:monospace">' + esc(i.badge) + '<br><span class="muted" style="font-size:15px">' + esc(i.phone) + '</span></td>' +
-            '<td>' + esc(i.issued) + '</td>' +
-            '<td nowrap><button class="xp-btn small green" data-flash="' + esc(i.id) + '">Flash</button> <button class="xp-btn small" data-print="' + esc(i.id) + '">Print</button> <button class="xp-btn small red" data-shred="' + esc(i.id) + '">Shred</button></td>' +
-            '</tr>').join('') + '</tbody></table>'
-        : '<div class="panel pad muted">No covers forged yet. IDs only matter when spoken aloud on a live call &mdash; untruthful lamination is not a crime here, it is the whole gag.</div>';
-      html += '<div class="muted" style="font-size:15px;margin:2px 0 6px">"Flash" only works with a victim on the line: it is spoken through the phone.</div>';
-
-      html += '<h3 class="sec">Stolen dossiers from the Wallet (' + doss.length + ')</h3>';
-      html += doss.map(l => {
-        const det = l.details || {};
-        const rows = [
-          ['DOB', det.dob], ['Home', det.address], ['Phone', det.phone], ['Email', det.email],
-          ['Employer', det.employer], ['SSN (last 4)', det.ssn4],
-          ['Maiden name', det.maiden], ['First pet', det.firstPet], ['First car', det.firstCar], ['Childhood street', det.firstStreet]
-        ].filter(r => r[1] != null && r[1] !== '').map(r => '<div class="row" style="gap:6px;padding:1px 0"><b style="width:118px;flex:none;font-size:16px">' + esc(r[0]) + ':</b><span class="selectable" style="user-select:text">' + esc(r[1]) + '</span></div>').join('');
-        const logins = (det.bankUser ? '<div class="row" style="gap:6px;padding:1px 0"><b style="width:118px;flex:none;font-size:16px">Bank login:</b><span class="selectable" style="user-select:text">' + esc(det.bankUser) + ' / ' + esc(det.bankPass) + '</span></div>' : '');
-        const lk = (D().banks || {})[det.leadId];
-        const openBtn = lk ? '<button class="xp-btn small green" data-bank-url="' + esc(lk.slug) + '">Open ' + esc(det.bank || 'their bank') + ' site</button>' : '';
-        return '<div class="card" style="padding:8px;margin-bottom:6px;flex-direction:column;align-items:stretch;display:flex">' +
-          '<div class="row" style="justify-content:space-between"><b>' + SO.iconImg('user', 20) + esc(det.name || l.from) + '</b><span class="tag g">DOSSIER</span></div>' +
-          '<div style="margin-top:4px;font-size:17px;line-height:19px">' + rows + logins + '</div>' +
-          '<div class="row" style="margin-top:4px;gap:6px">' + openBtn + '<span class="muted" style="font-size:15px">These exact strings answer the bank\'s identity checks.</span></div></div>';
-      }).join('');
-      if (pend.length) {
-        html += '<div class="panel pad" style="margin-top:2px"><b>No dossier yet for ' + pend.length + ' lead(s).</b><div class="muted" style="font-size:16px">A records pull costs $80 and buys the WHOLE dossier &mdash; including the bank\'s security answers &mdash; but raises heat.</div>' +
-          '<div class="col" style="gap:3px;margin-top:4px">' + pend.map(x =>
-            '<div class="row" style="gap:8px"><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><b>' + esc(x.lead.name) + '</b> <span class="muted">(' + esc(x.lead.bank || 'unknown bank') + ')</span></span><button class="xp-btn small" data-lookup="' + esc(x.lead.id) + '">Pull records ($80)</button></div>'
-          ).join('') + '</div></div>';
+      function renderPress() {
+        const d = SO.save.d;
+        const ids = d.ids || [];
+        return '<div class="split" style="flex:1;min-height:0">' +
+          '<div style="flex:1.1;display:flex;flex-direction:column;gap:8px;padding-right:10px;overflow:auto">' +
+            '<div class="group" style="margin:0"><div class="group-title">Mint Cover Identity ($25 per badge)</div>' +
+              '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">' +
+                '<label style="font-size:11px">Operative Name<input class="xp-in" id="id-name" value="' + esc(draft.name) + '"></label>' +
+                '<label style="font-size:11px">Official Title<input class="xp-in" id="id-title" value="' + esc(draft.title) + '"></label>' +
+                '<label style="font-size:11px">Agency / Institution<input class="xp-in" id="id-org" value="' + esc(draft.org) + '"></label>' +
+                '<label style="font-size:11px">Badge / Licence #<input class="xp-in mono" id="id-badge" value="' + esc(draft.badge) + '"></label>' +
+                '<label style="font-size:11px">Verification Line<input class="xp-in mono" id="id-phone" value="' + esc(draft.phone) + '"></label>' +
+                '<label style="font-size:11px">Seal Style<select class="xp-sel" id="id-seal">' + SEALS.map(s => '<option value="' + s.id + '" ' + (s.id === draft.seal ? 'selected' : '') + '>' + s.label + '</option>').join('') + '</select></label>' +
+                '<label style="font-size:11px;grid-column:span 2">Authorization Footnote<input class="xp-in" id="id-memo" value="' + esc(draft.memo) + '"></label>' +
+              '</div>' +
+            '</div>' +
+            '<div class="group" style="margin:0"><div class="group-title">Live Badge Preview</div><div id="id-prev">' + badgeCard(draft) + '</div>' +
+              '<div class="row" style="justify-content:space-between;margin-top:8px">' +
+                '<span class="muted">Minting cost: <b>$25</b></span>' +
+                '<button class="xp-btn green" id="id-print">🖨 Mint Credential ($25)</button>' +
+              '</div>' +
+            '</div>' +
+          '</div>' +
+          '<div style="flex:1;display:flex;flex-direction:column;min-height:0">' +
+            '<div style="font-weight:700;margin-bottom:6px">Minted Cover Badges (' + ids.length + ')</div>' +
+            '<div class="sunken" style="flex:1;overflow:auto;padding:8px;display:flex;flex-direction:column;gap:8px">' +
+              (ids.length === 0 ? '<div class="muted" style="padding:12px">No cover badges minted yet. Mint a badge on the left and register it as your Active Switchboard Cover.</div>' :
+                ids.map(c => {
+                  const isAct = d.activeCoverId === c.id;
+                  return '<div>' + badgeCard(c) +
+                    '<div class="row" style="justify-content:space-between;margin-top:4px">' +
+                      (isAct ? '<span class="tag g">ACTIVE SWITCHBOARD COVER</span>' : '<button class="xp-btn" data-act="' + esc(c.id) + '" style="padding:3px 8px;font-size:11px">Set as Active Cover</button>') +
+                      '<div class="row">' +
+                        '<button class="xp-btn primary" data-flash="' + esc(c.id) + '" style="padding:3px 8px;font-size:11px">State on Live Call</button>' +
+                        '<button class="xp-btn red" data-del="' + esc(c.id) + '" style="padding:3px 8px;font-size:11px">Shred</button>' +
+                      '</div>' +
+                    '</div></div>';
+                }).join('')) +
+            '</div>' +
+          '</div></div>';
       }
-      if (!ids.length && !doss.length && !pend.length) html += '<div class="panel pad muted">Ghost town. Collect payloads on calls first.</div>';
-      b.innerHTML = html;
 
-      b.querySelectorAll('[data-flash]').forEach(bt => bt.onclick = () => {
-        const o = (d.ids || []).find(x => x.id === bt.dataset.flash);
-        if (o && flash(o)) SO.audio.play('click');
-      });
-      b.querySelectorAll('[data-print]').forEach(bt => bt.onclick = () => {
-        const o = (d.ids || []).find(x => x.id === bt.dataset.print);
-        if (o) print(o);
-      });
-      b.querySelectorAll('[data-shred]').forEach(bt => bt.onclick = () => {
-        const i = d.ids.findIndex(x => x.id === bt.dataset.shred);
-        if (i < 0) return;
-        d.ids.splice(i, 1); SO.save.save(); SO.audio.play('blip'); render();
-      });
-      b.querySelectorAll('[data-bank-url]').forEach(bt => bt.onclick = () => {
-        const host = 'http://www.' + bt.dataset.bankUrl + '.com';
-        const ie = SO.wm.get('ie');
-        if (ie && ie.navigo) { ie.navigo(host); return; }
-        SO.openApp('ie', { url: host });
-      });
-      b.querySelectorAll('[data-lookup]').forEach(bt => bt.onclick = () => {
-        const r = G.recordLookup(bt.dataset.lookup);
-        SO.notify(r.ok ? 'Records purchased' : 'Lookup refused', r.msg, r.ok ? 'tip' : 'warn', { sound: r.ok ? 'cash' : 'error' });
-        if (r.ok) render();
-      });
+      function renderRecords() {
+        const d = SO.save.d;
+        const leads = (d.leads || []).concat(Object.values(d.pastLeads || {}));
+        const unlocked = new Set((d.loot || []).filter(l => l.type === 'info' && l.details).map(l => l.details.leadId || l.from));
+        const qClean = searchQ.trim().toLowerCase();
+        const matches = qClean
+          ? leads.filter(l => (l.name + ' ' + (l.phone || '') + ' ' + (l.city || '') + ' ' + (l.bank || '')).toLowerCase().includes(qClean))
+          : leads;
+
+        return '<div style="display:flex;flex-direction:column;flex:1;min-height:0;gap:8px">' +
+          '<div class="group" style="margin:0">' +
+            '<div class="group-title">County Clerk &amp; OSINT Identity Query ($80 per full background pull)</div>' +
+            '<div class="row" style="gap:8px">' +
+              '<input class="xp-in" id="osint-q" placeholder="Search by Full Name, Phone Number (555-XXXX), City, or Bank..." value="' + esc(searchQ) + '" style="flex:1">' +
+              '<button class="xp-btn" id="osint-clr">Show All (' + leads.length + ')</button>' +
+            '</div>' +
+            '<div class="muted" style="margin-top:4px;font-size:11px">Full background pulls reveal <b>DOB, SSN Last 4, Mother\'s Maiden Name, First Pet, First Car, and Childhood Street</b> for passing bank security checks.</div>' +
+          '</div>' +
+          '<div class="sunken" style="flex:1;overflow:auto;padding:8px">' +
+            (matches.length === 0 ? '<div class="muted" style="padding:12px">No county records match "' + esc(searchQ) + '".</div>' :
+              '<table class="table"><thead><tr><th>Subject</th><th>Line / City</th><th>Unlocked Background Dossier</th><th>Action</th></tr></thead><tbody>' +
+              matches.map(l => {
+                const openRec = unlocked.has(l.id) || unlocked.has(l.name);
+                const doss = openRec ? G.dossierFor(l) : null;
+                return '<tr>' +
+                  '<td><b>' + esc(l.name) + '</b><div class="muted">' + l.age + ' · ' + esc(l.job) + ' · ' + esc(l.bank) + '</div></td>' +
+                  '<td class="mono">' + esc(l.phone || '555-0100') + '<div class="muted" style="font-family:var(--sans)">' + esc(l.city) + '</div></td>' +
+                  '<td style="font-size:11px">' + (doss
+                    ? '<div><b>DOB:</b> ' + esc(doss.dob) + ' · <b>SSN4:</b> ' + esc(doss.ssn4) + '</div>' +
+                      '<div><b>Addr:</b> ' + esc(doss.address) + '</div>' +
+                      '<div><b>Maiden:</b> ' + esc(doss.maiden) + ' · <b>Pet:</b> ' + esc(doss.firstPet) + ' · <b>Car:</b> ' + esc(doss.firstCar) + '</div>' +
+                      '<div><b>Childhood St:</b> ' + esc(doss.firstStreet) + '</div>'
+                    : '<span class="muted">🔒 Sealed County Record — Pull full dossier ($80) or ask on a call</span>') + '</td>' +
+                  '<td>' + (openRec ? '<span class="tag g">UNLOCKED</span>' : '<button class="xp-btn primary" data-pull="' + esc(l.id) + '">Pull Record ($80)</button>') + '</td>' +
+                '</tr>';
+              }).join('') +
+              '</tbody></table>') +
+          '</div></div>';
+      }
+
+      function render() {
+        root.innerHTML =
+          '<div class="row" style="justify-content:space-between;margin-bottom:6px">' +
+            '<div class="row">' +
+              '<button class="xp-btn ' + (tab === 'press' ? 'primary' : '') + '" id="t-press">🪪 Credential Press</button>' +
+              '<button class="xp-btn ' + (tab === 'rec' ? 'primary' : '') + '" id="t-rec">🗂 OSINT County Records</button>' +
+            '</div>' +
+            '<span class="muted">Balance: <b>' + G.fmt(SO.save.d.cash) + '</b></span>' +
+          '</div>' +
+          (banner ? '<div class="banner ' + (banner.ok ? '' : 'err') + '" style="margin-bottom:6px">' + esc(banner.msg) + '</div>' : '') +
+          (tab === 'press' ? renderPress() : renderRecords());
+
+        root.querySelector('#t-press').onclick = () => { tab = 'press'; banner = null; render(); };
+        root.querySelector('#t-rec').onclick = () => { tab = 'rec'; banner = null; render(); };
+
+        if (tab === 'press') {
+          const bindIn = (id, k) => {
+            const el = root.querySelector('#' + id);
+            if (!el) return;
+            el.oninput = el.onchange = () => {
+              draft[k] = el.value;
+              const p = root.querySelector('#id-prev');
+              if (p) p.innerHTML = badgeCard(draft);
+            };
+          };
+          bindIn('id-name', 'name'); bindIn('id-title', 'title'); bindIn('id-org', 'org');
+          bindIn('id-badge', 'badge'); bindIn('id-phone', 'phone'); bindIn('id-memo', 'memo'); bindIn('id-seal', 'seal');
+
+          root.querySelector('#id-print').onclick = () => {
+            if (!draft.name.trim() || !draft.org.trim()) { banner = { ok: false, msg: 'Every credential needs a name and an agency.' }; render(); return; }
+            if (!G.spend(25, 'Minted Cover ID: ' + draft.name + ' (' + draft.org + ')')) { SO.audio.play('error'); banner = { ok: false, msg: 'Printing a badge costs $25.' }; render(); return; }
+            const d = SO.save.d; d.ids = d.ids || [];
+            const newId = Object.assign({ id: 'id_' + Date.now() }, draft);
+            d.ids.unshift(newId);
+            if (!d.activeCoverId) d.activeCoverId = newId.id;
+            SO.save.save(); SO.audio.play('cash');
+            draft.badge = 'FB-' + Math.floor(1000 + Math.random() * 8999);
+            banner = { ok: true, msg: 'Minted credential for ' + newId.name + '.' };
+            render();
+          };
+          root.querySelectorAll('[data-act]').forEach(b => b.onclick = () => {
+            SO.save.d.activeCoverId = b.dataset.act;
+            SO.save.save();
+            banner = { ok: true, msg: 'Updated active switchboard cover identity.' };
+            render();
+          });
+          root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+            const d = SO.save.d; d.ids = (d.ids || []).filter(x => x.id !== b.dataset.del);
+            if (d.activeCoverId === b.dataset.del) d.activeCoverId = (d.ids[0] && d.ids[0].id) || null;
+            SO.save.save(); render();
+          });
+          root.querySelectorAll('[data-flash]').forEach(b => b.onclick = () => {
+            const id = (SO.save.d.ids || []).find(x => x.id === b.dataset.flash);
+            if (!id) return;
+            const ok = G.callEvent(G.flashIdEvent(id));
+            banner = ok ? { ok: true, msg: 'Stated ' + id.name + ' (' + id.org + ') on the active call.' } : { ok: false, msg: 'No active call. Dial a target in Softphone first.' };
+            render();
+          });
+        } else {
+          const qIn = root.querySelector('#osint-q');
+          if (qIn) {
+            qIn.oninput = e => {
+              searchQ = e.target.value;
+              const pos = qIn.selectionStart;
+              render();
+              const nq = root.querySelector('#osint-q');
+              if (nq) { nq.focus(); try { nq.setSelectionRange(pos, pos); } catch (err) {} }
+            };
+          }
+          const clr = root.querySelector('#osint-clr');
+          if (clr) clr.onclick = () => { searchQ = ''; render(); };
+          root.querySelectorAll('[data-pull]').forEach(b => b.onclick = () => {
+            const r = G.recordLookup(b.dataset.pull);
+            SO.audio.play(r.ok ? 'cash' : 'error');
+            banner = { ok: r.ok, msg: r.msg };
+            render();
+          });
+        }
+      }
+
+      unsub = G.sub(render);
+      render();
     }
-
-    const iv = setInterval(() => { if (SO.wm.get('idforge')) render(); else clearInterval(iv); }, 3000);
-    unsubG = G.sub(() => { if (SO.wm.get('idforge')) render(); });
-
-    render();
-    return w;
-  }
-
-  SO.registerApp({ id: 'idforge', name: 'ID Forge', icon: 'id', desktop: true, start: true, order: 7, open });
+  });
 })();

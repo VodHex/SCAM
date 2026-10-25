@@ -184,37 +184,46 @@
         },
         leads: function () {
           const L = SO.save && SO.save.d && SO.save.d.leads;
-          if (!Array.isArray(L) || !L.length) { print('No leads. Go find some victims... er, customers. (Parody!)'); return; }
-          L.forEach(function (l, i) { print((i + 1) + '. ' + (l.name || '???') + (l.age != null ? ', ' + l.age : '') + (l.job ? ' - ' + l.job : '')); });
+          if (!Array.isArray(L) || !L.length) { print('No leads in directory. Use CRM or Softphone to fetch new leads.'); return; }
+          L.forEach(function (l, i) { print((i + 1) + '. [' + (l.phone || '555-0100') + '] ' + (l.name || '???') + (l.age != null ? ', ' + l.age : '') + (l.job ? ' - ' + l.job : '') + ' (' + (l.bank || '') + ')'); });
         },
         agencies: function () {
           const d = SO.save && SO.save.d; const I = d && d.ids;
-          if (!Array.isArray(I) || !I.length) { print('No forged IDs in the album. Use the ID Forge app to make some (not real ones, obviously).'); return; }
+          if (!Array.isArray(I) || !I.length) { print('No forged IDs in wallet. Use ID Forge to mint credentials.'); return; }
           I.forEach(function (i, n) { print((n + 1) + '. ' + (i.name || '?') + ' - ' + (i.title || '?') + ', ' + (i.org || '?') + ' [badge ' + (i.badge || '-') + ']'); });
         },
         bank: function () {
           const d = SO.save && SO.save.d; const B = d && d.banks;
           const ids = B ? Object.keys(B) : [];
-          if (!ids.length) { print('No bank accounts on file. Capture an online-banking login payload on a call, then the portal appears.'); return; }
+          if (!ids.length) { print('No bank accounts indexed yet.'); return; }
           print('Bank profiles on file (all fictional):');
           ids.forEach(function (id) {
             const b = B[id]; const lead = (d.leads || []).find(l => l.id === id) || (d.pastLeads || {})[id];
-            print(' - www.' + b.slug + '.com  ' + (lead ? lead.name : id) + '  checking ' + (b.checking || 0) + ' / savings ' + (b.savings || 0) + '  flags ' + (b.flags || 0) + (b.locked ? ' [LOCKED]' : ''));
+            print(' - www.' + b.slug + '.com  ' + (lead ? lead.name : id) + '  checking $' + (b.checking || 0) + ' / savings $' + (b.savings || 0) + '  flags ' + (b.flags || 0) + (b.locked ? ' [LOCKED]' : ''));
           });
         },
         dossier: function (a) {
           const d = SO.save && SO.save.d; const seen = {};
-          (d.loot || []).forEach(function (l) { if (l.type === 'info' && l.details) seen[l.details.leadId] = l.details; });
+          (d.loot || []).forEach(function (l) { if (l.type === 'info' && l.details) seen[l.details.leadId || l.from] = Object.assign({ unlocked: true }, l.details); });
+          Object.keys(d.dossiers || {}).forEach(function (lid) {
+            if (!seen[lid]) seen[lid] = Object.assign({ unlocked: false }, d.dossiers[lid]);
+          });
           const ks = Object.keys(seen);
-          if (!ks.length) { print('No stolen dossiers yet. Ask victims for personal info, or pay $80 for a records pull.'); return; }
+          if (!ks.length) { print('No dossiers indexed yet. Generate leads in CRM or pull records in ID Forge ($80).'); return; }
           if (a) {
-            const s = seen.find ? null : ks.map(k => seen[k]).find(x => (x.name || '').toLowerCase() === String(a).toLowerCase());
-            if (!s) { print('No dossier for a person named "' + a + '".'); return; }
+            const q = String(a).toLowerCase();
+            const s = ks.map(k => seen[k]).find(x => String(x.name || '').toLowerCase().includes(q));
+            if (!s) { print('No dossier for a person matching "' + a + '".'); return; }
+            if (!s.unlocked) {
+              print('Record for ' + s.name + ' is SEALED (Public Phone: ' + (s.phone || '555-0100') + ', City: ' + (s.city || '') + ').');
+              print('Pull full county record in ID Forge ($80) or ask on a call to unlock.');
+              return;
+            }
             ['name', 'dob', 'address', 'phone', 'email', 'employer', 'ssn4', 'maiden', 'firstPet', 'firstCar', 'firstStreet', 'bankUser', 'bankPass'].forEach(function (f) { if (s[f] != null) print('  ' + f + ': ' + s[f]); });
             return;
           }
-          print('Dossiers on file: ' + ks.length + '. Use DOSSIER <full name> to print one.');
-          ks.forEach(function (k) { print(' - ' + (seen[k].name || k)); });
+          print('Dossiers indexed: ' + ks.length + '. Use DOSSIER <name> to inspect.');
+          ks.forEach(function (k) { print(' - [' + (seen[k].unlocked ? 'UNLOCKED' : 'SEALED  ') + '] ' + (seen[k].name || k) + ' (' + (seen[k].phone || '') + ')'); });
         },
         hack: hack,
         matrix: matrix,
